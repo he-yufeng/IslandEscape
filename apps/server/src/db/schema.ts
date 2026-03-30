@@ -1,0 +1,9 @@
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+export const saves = sqliteTable('saves', {
+  id: text('id').primaryKey(),
+  label: text('label').notNull(),
+  turn: integer('turn').notNull().default(0),
+  snapshot: text('snapshot', { mode: 'json' }).notNull(),
+  updatedAt: text('updated_at').notNull(),
+})

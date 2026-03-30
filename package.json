@@ -1,0 +1,22 @@
+{
+  "name": "finalproject",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "concurrently -n web,server -c cyan,green \"pnpm --filter @game/web dev\" \"pnpm --filter @game/server dev\"",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:unit": "pnpm --filter @game/web test:unit && pnpm --filter @game/server test:unit && pnpm --filter @game/shared test:unit",
+    "test:e2e": "pnpm --filter @game/web test:e2e",
+    "db:generate": "pnpm --filter @game/server db:generate",
+    "db:migrate": "pnpm --filter @game/server db:migrate",
+    "db:studio": "pnpm --filter @game/server db:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.2"
+  }
+}

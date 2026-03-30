@@ -1,0 +1,90 @@
+name: finalproject-multiagent
+version: 1
+owner: game-team
+project_type: monorepo
+package_manager: pnpm-workspace
+runtime:
+  node: ">=22.12"
+  packageManager: "pnpm@10"
+
+language_policy:
+  default_language: English
+  documentation_must_be_english: true
+  code_comments_must_be_english: true
+  allow_non_english_in_user_facing_game_content: true
+
+workspace:
+  apps:
+    - apps/web
+    - apps/server
+  packages:
+    - packages/shared
+
+architecture:
+  frontend:
+    framework: vue3
+    language: typescript
+    build: vite
+    state: pinia
+    routing: vue-router
+    style: tailwindcss-v4
+  backend:
+    framework: fastify
+    validation: zod
+    agent_sdk: "@openai/agents"
+    orm: drizzle
+    db: "sqlite(file) via @libsql/client"
+
+api_contract:
+  transport:
+    - REST
+    - SSE
+  websocket_allowed: false
+  endpoints:
+    - "POST /api/runs"
+    - "GET /api/runs/:runId/stream"
+    - "GET /api/saves"
+    - "POST /api/saves"
+    - "GET /api/saves/:id"
+    - "POST /api/saves/:id/load"
+
+security:
+  agent_runtime_location: apps/server
+  frontend_must_not_store_model_keys: true
+  required_env:
+    - OPENAI_API_KEY
+    - OPENAI_BASE_URL
+    - OPENAI_MODEL
+    - DB_FILE_NAME
+    - LOG_LEVEL
+
+shared_contract:
+  package: "@game/shared"
+  exports:
+    - GameCommand
+    - GameEvent
+    - AgentRunRequest
+    - AgentStreamEvent
+    - GameStateSnapshot
+    - SaveSlotSummary
+    - ApiError
+
+quality_gates:
+  required_commands:
+    - pnpm lint
+    - pnpm typecheck
+    - pnpm test
+    - pnpm test:e2e
+
+forbidden:
+  - "Do not use WebSocket in v1"
+  - "Do not move agent runtime to frontend"
+  - "Do not introduce Prisma as primary ORM"
+  - "Do not add heavy UI libraries (Element Plus, Naive UI, Vuetify)"
+  - "Do not write project documentation in non-English languages"
+  - "Do not write source-code comments in non-English languages"
+
+notes:
+  - "Use root scripts as single entry points"
+  - "Prefer deterministic schema-driven contracts across web/server"
+  - "All docs and code comments must be authored in English"

@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f7f5ef;
+  --fg: #1f1f1f;
+  --panel: #fffdf6;
+  --accent: #235347;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(35, 83, 71, 0.1), transparent 35%),
+    linear-gradient(160deg, #f8f3e4 0%, #f3eee0 100%);
+  color: var(--fg);
+  min-height: 100vh;
+  font-family: "Noto Sans SC", "Segoe UI", sans-serif;
+}
+
+#app {
+  min-height: 100vh;
+}
