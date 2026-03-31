@@ -4,8 +4,7 @@ import sensible from '@fastify/sensible'
 
 import { ensureSchema } from './db/client'
 import { env } from './env'
-import runsRoutes from './routes/runs'
-import savesRoutes from './routes/saves'
+import gameRoutes from './routes/game'
 
 export async function createApp() {
   const app = Fastify({
@@ -28,8 +27,7 @@ export async function createApp() {
   await ensureSchema()
 
   app.get('/healthz', async () => ({ ok: true }))
-  await app.register(runsRoutes)
-  await app.register(savesRoutes)
+  await app.register(gameRoutes)
 
   return app
 }

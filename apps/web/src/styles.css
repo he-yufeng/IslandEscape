@@ -1,22 +1,83 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f7f5ef;
-  --fg: #1f1f1f;
-  --panel: #fffdf6;
-  --accent: #235347;
+  --bg: #0a0a1a;
+  --bg-light: #1a1a2e;
+  --fg: #c8d8e8;
+  --panel: #1a1a2e;
+  --accent: #b45309;
+  --fish: #3388cc;
+  --wheat: #d4a030;
+  --coins: #f0c040;
+  --danger: #dd4444;
+  --success: #44aa55;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at 10% 10%, rgba(35, 83, 71, 0.1), transparent 35%),
-    linear-gradient(160deg, #f8f3e4 0%, #f3eee0 100%);
+  background: #0a0a1a;
   color: var(--fg);
   min-height: 100vh;
-  font-family: "Noto Sans SC", "Segoe UI", sans-serif;
+  font-family: monospace, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 #app {
   min-height: 100vh;
+}
+
+/* Pixel-art rendering for canvas */
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 120, 140, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 120, 140, 0.5);
+}
+
+/* Number input styling */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+/* Selection highlight */
+::selection {
+  background: rgba(180, 83, 9, 0.3);
+  color: #fff;
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid #4a6a8a;
+  outline-offset: 1px;
+}
+
+/* Disable text selection on game elements */
+.game-screen {
+  user-select: none;
+}
+
+/* Allow text selection in dialogue and log */
+.dialogue-panel,
+.event-log,
+.title-instructions {
+  user-select: text;
 }

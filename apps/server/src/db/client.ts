@@ -20,4 +20,12 @@ export async function ensureSchema() {
       updated_at TEXT NOT NULL
     )
   `)
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS games (
+      id TEXT PRIMARY KEY,
+      state TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `)
 }

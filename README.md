@@ -1,215 +1,150 @@
-# FinalProject Developer Guide
+# Island Escape
 
-This repository is a pnpm workspace monorepo for a turn-based text game:
-- `apps/web`: Vue 3 + TypeScript + Vite + Pinia + Vue Router + Tailwind CSS v4
-- `apps/server`: Fastify + Zod + @openai/agents + Drizzle + SQLite(file)
-- `packages/shared`: shared schemas and contract types used by both web and server
+A 2D pixel-art survival trading game powered by LLM-based AI agents.
 
-## 1. Requirements
+You're stranded on an island with four AI characters. Fish, farm, trade, and negotiate your way to 100 coins to escape — but everyone else is trying to do the same thing.
 
-- Node.js: LTS recommended, `>= 22.12`
-- npm: `>= 10`
-- Git: any stable version
-- Package manager: pnpm via Corepack (do not use standalone install scripts)
+## Game Features
 
-## 2. Fresh Setup (Windows)
+- **2D pixel-art island** — top-down tile map with WASD movement, rendered with PixiJS
+- **LLM-powered AI agents** — each NPC has a distinct personality and negotiates trades in natural language via DeepSeek/OpenAI API
+- **Labor + Trade system** — each day, every character must labor first (fish or farm), then gets 2 trade slots to negotiate with other islanders or sell to the merchant ship
+- **Emergent social dynamics** — AI agents form alliances, drive hard bargains, and may refuse to trade with you if you're close to escaping
+- **Friendship as currency** — successful trades build friendship, which affects pricing, willingness, and alliance formation
 
-### 2.1 Install base tools
+## Screenshots
 
-1. Install Git
-2. Install Node.js LTS (scoop is fine)
-3. Install VS Code (recommended)
+*(coming soon)*
 
-### 2.2 Enable pnpm (required order)
+## Tech Stack
 
-Run in PowerShell:
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Vue 3 + TypeScript + Vite + Pinia + Tailwind CSS v4 |
+| Game Rendering | PixiJS (HTML5 Canvas, programmatic pixel art) |
+| Backend | Fastify + Zod + Drizzle ORM + SQLite |
+| AI | OpenAI-compatible API (DeepSeek via OpenRouter) |
+| Shared | Zod schemas for type-safe contracts across web/server |
 
-```powershell
-npm install -g corepack@latest
-corepack enable pnpm
-corepack use pnpm@latest-10
+## Project Structure
+
+```
+.
+├── apps/
+│   ├── web/                 # Vue 3 frontend with PixiJS game canvas
+│   │   ├── src/game/        # PixiJS: tile map, characters, input, world
+│   │   ├── src/components/  # Vue: HUD, ActionMenu, DialoguePanel, EventLog
+│   │   ├── src/stores/      # Pinia game store + SSE management
+│   │   └── src/composables/ # API helpers
+│   └── server/              # Fastify backend
+│       ├── src/engine/      # Game state machine (pure functions)
+│       ├── src/agents/      # LLM integration: decision, negotiation, personalities
+│       ├── src/routes/      # REST + SSE endpoints
+│       └── src/db/          # Drizzle + SQLite persistence
+└── packages/
+    └── shared/              # Zod schemas shared between web and server
 ```
 
-### 2.3 Clone and initialize
+## Game Rules
 
-```powershell
-git clone <your-repo-url> FinalProject
-cd FinalProject
-git init
+### Daily Flow
+
+1. **Day Start** — merchant ship arrives with random prices; pending harvests are collected
+2. **Player Labor** (mandatory) — choose to fish (+3 fish instantly) or farm (+8 wheat in 3 days)
+3. **Player Trade** (2 slots) — trade with merchant ship for coins, or negotiate with NPCs
+4. **AI Turns** — each AI agent labors then uses up to 2 trade slots (LLM decides)
+5. **Settlement** — everyone consumes 1 fish + 1 wheat; anyone at 0 is eliminated
+6. **Win** — first to 100 coins boards the ship and escapes
+
+### Trading
+
+- **Merchant Ship**: sell fish/wheat at today's random prices for coins (only way to get coins)
+- **Peer Negotiation**: walk to an NPC, initiate dialogue (max 5 exchanges), propose trades via templates or free text
+- Each conversation costs 1 trade slot, whether or not a deal is reached
+
+### AI Personalities
+
+| Character | Personality | Play Style |
+|-----------|------------|------------|
+| **Tom** | Cautious Fisherman | Hoards resources, loyal to friends, drives hard bargains |
+| **Sam** | Aggressive Trader | Flips resources for profit, charming but unreliable |
+| **Lily** | Cooperative Farmer | Builds alliances, generous to friends, avoids conflict |
+| **Jack** | Cunning Opportunist | Exploits desperate situations, pretends to be friendly |
+
+## Setup
+
+### Requirements
+
+- Node.js >= 22.12
+- pnpm (via Corepack)
+
+### Install
+
+```bash
+corepack enable pnpm
+corepack use pnpm@latest-10
+git clone https://github.com/he-yufeng/IslandEscape.git
+cd IslandEscape
 pnpm install
 ```
 
-## 3. Fresh Setup (macOS)
-
-### 3.1 Install base tools
-
-1. Install Xcode Command Line Tools
-
-```bash
-xcode-select --install
-```
-
-2. Install Homebrew (if missing)
-3. Install Git and Node.js LTS with Homebrew
-
-```bash
-brew install git node
-```
-
-4. Install VS Code (optional)
-
-### 3.2 Enable pnpm (required order)
-
-```bash
-npm install -g corepack@latest
-corepack enable pnpm
-corepack use pnpm@latest-10
-```
-
-### 3.3 Clone and initialize
-
-```bash
-git clone <your-repo-url> FinalProject
-cd FinalProject
-git init
-pnpm install
-```
-
-## 4. Environment Variables
-
-Create local env file from template:
+### Configure
 
 ```bash
 cp .env.example .env
 ```
 
-PowerShell equivalent:
+Edit `.env`:
 
-```powershell
-Copy-Item .env.example .env
+```
+OPENAI_API_KEY=<your-openrouter-or-openai-key>
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_MODEL=deepseek/deepseek-chat
+DB_FILE_NAME=file:local.db
+LOG_LEVEL=info
 ```
 
-Supported variables:
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `OPENAI_MODEL`
-- `DB_FILE_NAME` (default: `file:local.db`)
-- `LOG_LEVEL`
-
-## 5. Common Commands
-
-Run from repository root.
-
-### 5.1 Start local development
+### Run
 
 ```bash
 pnpm dev
 ```
 
-### 5.2 Build
+Opens:
+- **Frontend**: http://localhost:5173
+- **Backend**: http://localhost:8787
+
+### Build
 
 ```bash
 pnpm build
 ```
 
-### 5.3 Lint and type-check
+## How to Play
 
-```bash
-pnpm lint
-pnpm typecheck
-```
+1. Open http://localhost:5173 and click **NEW GAME**
+2. **WASD** to move your character on the island
+3. **E** to interact — walk near fishing spots, farmland, NPCs, or the merchant ship
+4. **Labor first**: fish or farm (mandatory each day)
+5. **Then trade**: negotiate with NPCs or sell to the ship
+6. Click **End Turn** when done — watch the AI agents take their turns
+7. Survive the nightly resource drain and be the first to collect 100 coins!
 
-### 5.4 Test
+## API Endpoints
 
-```bash
-pnpm test
-pnpm test:unit
-pnpm test:e2e
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/games` | Create new game |
+| GET | `/api/games/:id` | Get current game state |
+| POST | `/api/games/:id/action` | Submit player action |
+| GET | `/api/games/:id/stream` | SSE stream for real-time AI turn updates |
 
-Install Playwright browsers before first e2e run:
+## References
 
-```bash
-pnpm --filter @game/web exec playwright install
-```
+- [Generative Agents (Park et al., 2023)](https://arxiv.org/abs/2304.03442) — foundational LLM agent architecture
+- [Project Sid (2024)](https://arxiv.org/abs/2411.00114) — emergent economies in multi-agent simulations
+- [AI Town (a16z)](https://github.com/a16z-infra/ai-town) — open-source LLM agent simulation
 
-### 5.5 Database commands
+## License
 
-```bash
-pnpm db:generate
-pnpm db:migrate
-pnpm db:studio
-```
-
-## 6. Release Flow (Recommended)
-
-This repo is currently `private`, so release means project delivery, not npm publishing.
-
-Recommended process:
-
-1. Sync with main and install dependencies
-```bash
-git checkout main
-git pull
-pnpm install
-```
-
-2. Run quality gates
-```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
-```
-
-3. Build artifacts
-- Web artifact: `apps/web/dist`
-- Server artifact: `apps/server/dist`
-
-4. Tag release
-```bash
-git tag vX.Y.Z
-git push origin vX.Y.Z
-```
-
-5. Deploy
-- Deploy static web artifact from `apps/web/dist`
-- Deploy Node server from `apps/server/dist` with `.env`
-
-## 7. Editor Baseline
-
-Recommended VS Code extensions:
-- Vue - Official (Volar)
-- ESLint
-- Tailwind CSS IntelliSense
-- Playwright Test
-
-Disable Vetur.
-
-## 8. Repository Layout
-
-```text
-.
-├─ apps
-│  ├─ web
-│  └─ server
-├─ packages
-│  └─ shared
-├─ package.json
-├─ pnpm-workspace.yaml
-└─ tsconfig.base.json
-```
-
-## 9. Language Policy
-
-- All project documentation must be written in English.
-- All code comments must be written in English.
-
-## 10. Core Constraints
-
-- v1 transport is REST + SSE only. Do not add WebSocket in v1.
-- Agent runtime is allowed only in `apps/server`.
-- Frontend must not store or expose model keys.
-- Data layer is fixed to Drizzle + @libsql/client + SQLite(file).
-- Do not introduce heavy UI libraries such as Element Plus, Naive UI, or Vuetify.
+MIT

@@ -1,23 +1,24 @@
-import type { AgentStreamEvent, SaveSlotSummary } from '@game/shared'
+import type { GameState, GameSSEEvent } from '@game/shared'
+import type { ServerResponse } from 'node:http'
 
-export type RunState = {
-  id: string
-  events: AgentStreamEvent[]
-  done: boolean
+export type GameSession = {
+  gameId: string
+  state: GameState
+  sseClients: Set<ServerResponse>
 }
 
-export const runs = new Map<string, RunState>()
+export const sessions = new Map<string, GameSession>()
 
-export function toSaveSummary(input: {
-  id: string
-  label: string
-  turn: number
-  updatedAt: string
-}): SaveSlotSummary {
-  return {
-    id: input.id,
-    label: input.label,
-    turn: input.turn,
-    updatedAt: input.updatedAt,
+export function broadcastSSE(gameId: string, event: GameSSEEvent): void {
+  const session = sessions.get(gameId)
+  if (!session) return
+
+  const data = JSON.stringify(event)
+  for (const client of session.sseClients) {
+    try {
+      client.write(`data: ${data}\n\n`)
+    } catch {
+      session.sseClients.delete(client)
+    }
   }
 }

@@ -1,0 +1,346 @@
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useGameStore, CHARACTER_META } from '@/stores/game'
+import type { InteractionType } from '@/game/GameWorld'
+import type { CharacterId } from '@game/shared'
+
+const props = defineProps<{
+  interaction: InteractionType
+}>()
+
+const emit = defineEmits<{
+  close: []
+  'start-negotiation': [target: CharacterId]
+  'open-merchant': []
+}>()
+
+const game = useGameStore()
+const fishSellQty = ref(0)
+const wheatSellQty = ref(0)
+
+const isLaborPhase = computed(() => game.phase === 'player_labor')
+const isTradePhase = computed(() => game.phase === 'player_trade')
+
+const maxFish = computed(() => game.playerState?.resources.fish ?? 0)
+const maxWheat = computed(() => game.playerState?.resources.wheat ?? 0)
+
+const menuTitle = computed(() => {
+  if (!props.interaction) return ''
+  switch (props.interaction.kind) {
+    case 'npc':
+      return props.interaction.characterName
+    case 'fish':
+      return 'Fishing Spot'
+    case 'farm':
+      return 'Farmland'
+    case 'merchant':
+      return 'Merchant Ship'
+    default:
+      return ''
+  }
+})
+
+async function doFish() {
+  await game.submitAction({ type: 'fish' })
+  emit('close')
+}
+
+async function doFarm() {
+  await game.submitAction({ type: 'farm' })
+  emit('close')
+}
+
+function startTrade(target: CharacterId) {
+  // Don't send API yet — open dialogue panel and let player type first message
+  game.openNegotiation(target, `conv_${Date.now()}`)
+  emit('close')
+}
+
+async function doMerchantSell() {
+  if (fishSellQty.value <= 0 && wheatSellQty.value <= 0) return
+  await game.submitAction({
+    type: 'trade_merchant',
+    sell: { fish: fishSellQty.value, wheat: wheatSellQty.value },
+  })
+  fishSellQty.value = 0
+  wheatSellQty.value = 0
+  emit('close')
+}
+</script>
+
+<template>
+  <div v-if="interaction" class="action-menu">
+    <div class="menu-header">
+      <span class="menu-title">{{ menuTitle }}</span>
+      <button class="menu-close" @click="emit('close')">X</button>
+    </div>
+
+    <!-- LABOR PHASE: only fish/farm -->
+    <div v-if="isLaborPhase && interaction.kind === 'fish'" class="menu-body">
+      <div class="phase-tag labor">LABOR PHASE</div>
+      <button class="menu-action-btn" :disabled="game.isLoading" @click="doFish">
+        <span class="action-icon">Fish</span>
+        <span>Go Fishing (+3 fish)</span>
+      </button>
+      <div class="menu-note">You must labor first, then you can trade.</div>
+    </div>
+
+    <div v-else-if="isLaborPhase && interaction.kind === 'farm'" class="menu-body">
+      <div class="phase-tag labor">LABOR PHASE</div>
+      <button class="menu-action-btn" :disabled="game.isLoading" @click="doFarm">
+        <span class="action-icon">Farm</span>
+        <span>Plant Wheat (+8 in 3 days)</span>
+      </button>
+      <div class="menu-note">Wheat will be ready to harvest in 3 days.</div>
+    </div>
+
+    <div v-else-if="isLaborPhase" class="menu-body">
+      <div class="phase-tag labor">LABOR PHASE</div>
+      <div class="menu-note">You must fish or farm first! Walk to a fishing spot or farmland.</div>
+    </div>
+
+    <!-- TRADE PHASE: NPC, merchant -->
+    <div v-else-if="isTradePhase && interaction.kind === 'npc'" class="menu-body">
+      <div class="phase-tag trade">TRADE PHASE</div>
+      <div class="menu-info">
+        {{ CHARACTER_META[interaction.characterId]?.personality ?? '' }}
+      </div>
+      <button
+        class="menu-action-btn"
+        :disabled="game.playerTradeSlots <= 0 || game.isLoading"
+        @click="startTrade(interaction.characterId)"
+      >
+        <span class="action-icon">Trade</span>
+        <span>Negotiate a trade</span>
+        <span v-if="game.playerTradeSlots <= 0" class="action-note">(No trade slots)</span>
+      </button>
+    </div>
+
+    <div v-else-if="isTradePhase && interaction.kind === 'fish'" class="menu-body">
+      <div class="phase-tag trade">TRADE PHASE</div>
+      <div class="menu-note">You already labored today. Use your trade slots or end your turn.</div>
+    </div>
+
+    <div v-else-if="isTradePhase && interaction.kind === 'farm'" class="menu-body">
+      <div class="phase-tag trade">TRADE PHASE</div>
+      <div class="menu-note">You already labored today. Use your trade slots or end your turn.</div>
+    </div>
+
+    <div v-else-if="isTradePhase && interaction.kind === 'merchant'" class="menu-body">
+      <div class="phase-tag trade">TRADE PHASE</div>
+      <div class="merchant-prices">
+        <span>Fish: {{ game.merchantPrices.fishPrice }}c each</span>
+        <span>Wheat: {{ game.merchantPrices.wheatPrice }}c each</span>
+      </div>
+
+      <div class="merchant-sell-row">
+        <label>Sell Fish:</label>
+        <input
+          v-model.number="fishSellQty"
+          type="number"
+          :min="0"
+          :max="maxFish"
+          class="merchant-input"
+        />
+        <button class="max-btn" @click="fishSellQty = maxFish">MAX</button>
+      </div>
+
+      <div class="merchant-sell-row">
+        <label>Sell Wheat:</label>
+        <input
+          v-model.number="wheatSellQty"
+          type="number"
+          :min="0"
+          :max="maxWheat"
+          class="merchant-input"
+        />
+        <button class="max-btn" @click="wheatSellQty = maxWheat">MAX</button>
+      </div>
+
+      <div class="merchant-total">
+        Total: {{ fishSellQty * game.merchantPrices.fishPrice + wheatSellQty * game.merchantPrices.wheatPrice }} coins
+      </div>
+
+      <button
+        class="menu-action-btn"
+        :disabled="(fishSellQty <= 0 && wheatSellQty <= 0) || game.isLoading"
+        @click="doMerchantSell"
+      >
+        <span class="action-icon">Sell</span>
+        <span>Sell to Merchant</span>
+      </button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.action-menu {
+  background: #1a1a2e;
+  border: 2px solid #3a4a6a;
+  border-radius: 8px;
+  min-width: 240px;
+  max-width: 320px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #c8d8e8;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #222244;
+  border-bottom: 1px solid #3a3a5a;
+  border-radius: 6px 6px 0 0;
+}
+
+.menu-title {
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.menu-close {
+  background: none;
+  border: none;
+  color: #7a7a9a;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 12px;
+}
+.menu-close:hover {
+  color: #ff6666;
+}
+
+.menu-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.menu-info {
+  font-size: 10px;
+  color: #7a8a9a;
+  padding: 4px 6px;
+  background: #1a1a3a;
+  border-radius: 4px;
+}
+
+.menu-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: #2a3a5a;
+  border: 1px solid #3a4a6a;
+  border-radius: 4px;
+  color: #c8d8e8;
+  font-family: monospace;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.menu-action-btn:hover:not(:disabled) {
+  background: #3a4a6a;
+}
+.menu-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-icon {
+  background: #4a6a8a;
+  color: #e0f0ff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: bold;
+}
+
+.action-note {
+  color: #aa6666;
+  font-size: 9px;
+}
+
+.menu-note {
+  font-size: 10px;
+  color: #6a7a8a;
+  padding-left: 4px;
+}
+
+.merchant-prices {
+  display: flex;
+  gap: 12px;
+  padding: 6px;
+  background: #1a1a3a;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #aabbcc;
+}
+
+.merchant-sell-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.merchant-sell-row label {
+  font-size: 11px;
+  min-width: 70px;
+}
+
+.merchant-input {
+  width: 50px;
+  background: #2a2a4a;
+  border: 1px solid #3a3a5a;
+  color: #c8d8e8;
+  padding: 3px 6px;
+  border-radius: 3px;
+  text-align: center;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.max-btn {
+  background: #3a3a5a;
+  border: none;
+  color: #8a9aaa;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: monospace;
+}
+.max-btn:hover {
+  background: #4a4a6a;
+}
+
+.merchant-total {
+  font-weight: bold;
+  text-align: center;
+  padding: 4px;
+  color: #f0c040;
+}
+
+.phase-tag {
+  font-size: 9px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 3px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+.phase-tag.labor {
+  background: #2a5a3a;
+  color: #80ff80;
+}
+.phase-tag.trade {
+  background: #3a3a6a;
+  color: #80a0ff;
+}
+</style>

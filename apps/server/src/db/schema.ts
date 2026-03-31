@@ -7,3 +7,10 @@ export const saves = sqliteTable('saves', {
   snapshot: text('snapshot', { mode: 'json' }).notNull(),
   updatedAt: text('updated_at').notNull(),
 })
+
+export const games = sqliteTable('games', {
+  id: text('id').primaryKey(),
+  state: text('state', { mode: 'json' }).notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
