@@ -18,24 +18,42 @@ export async function chatJSON<T>(
   userMessage: string,
 ): Promise<T> {
   const openai = getClient()
-  const response = await openai.chat.completions.create({
-    model: env.OPENAI_MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage },
-    ],
-    temperature: 0.8,
-    max_tokens: 500,
-  })
+
+  let response: OpenAI.Chat.Completions.ChatCompletion
+  try {
+    response = await openai.chat.completions.create({
+      model: env.OPENAI_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      temperature: 0.8,
+      max_tokens: 1500,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[llm] API call failed:', message)
+    throw err
+  }
+
+  if (!response.choices || response.choices.length === 0) {
+    console.warn('[llm] Response has no choices. Full response:', JSON.stringify(response).slice(0, 300))
+    return {} as T
+  }
 
   const text = response.choices[0]?.message?.content ?? '{}'
-  // Extract JSON from response (may have markdown fences)
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) {
     console.warn('[llm] No JSON found in response:', text.slice(0, 200))
     return {} as T
   }
-  return JSON.parse(jsonMatch[0]) as T
+
+  try {
+    return JSON.parse(jsonMatch[0]) as T
+  } catch (err) {
+    console.warn('[llm] JSON parse failed, raw:', jsonMatch[0].slice(0, 200))
+    return {} as T
+  }
 }
 
 export async function chatText(
@@ -53,5 +71,5 @@ export async function chatText(
     max_tokens: 200,
   })
 
-  return response.choices[0]?.message?.content ?? ''
+  return response.choices?.[0]?.message?.content ?? ''
 }
