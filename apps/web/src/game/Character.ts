@@ -54,6 +54,10 @@ export class Character {
   private facing: 'down' | 'up' | 'left' | 'right' = 'down'
   private walkFrame = 0
 
+  public get moving(): boolean {
+    return this.isMoving
+  }
+
   // State flags
   public eliminated = false
   public escaped = false

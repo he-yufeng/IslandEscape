@@ -13,3 +13,4 @@ apps/server/local.db
 apps/server/*.db
 apps/server/*.db-wal
 apps/server/*.db-shm
+.devdbrc

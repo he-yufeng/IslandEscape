@@ -157,7 +157,6 @@ export class GameWorld {
   private characterLayer: Container
   private effectsLayer: Container
   private eventCallback: GameWorldEventCallback | null = null
-  private playerMoveLocked = false
   private nightOverlay: Graphics | null = null
   private inputEnabled = true
 
@@ -234,27 +233,11 @@ export class GameWorld {
   }
 
   private handleInput(action: InputAction) {
-    if (!this.inputEnabled || this.playerMoveLocked) return
-
-    const player = this.characters.get('player')
-    if (!player) return
-
-    switch (action) {
-      case 'move_up':
-        this.movePlayer(0, -1)
-        break
-      case 'move_down':
-        this.movePlayer(0, 1)
-        break
-      case 'move_left':
-        this.movePlayer(-1, 0)
-        break
-      case 'move_right':
-        this.movePlayer(1, 0)
-        break
-      case 'interact':
-        this.emit({ type: 'action_menu' })
-        break
+    if (!this.inputEnabled) return
+    if (action === 'interact') {
+      const player = this.characters.get('player')
+      if (player && player.moving) return
+      this.emit({ type: 'action_menu' })
     }
   }
 
@@ -274,16 +257,11 @@ export class GameWorld {
 
     const moved = player.tryMove(dcol, drow)
     if (moved) {
-      this.playerMoveLocked = true
-      // Unlock after a short delay
-      setTimeout(() => {
-        this.playerMoveLocked = false
-        this.checkNearbyInteractions()
-        this.emit({
-          type: 'player_moved',
-          position: player.getPosition(),
-        })
-      }, 200)
+      this.checkNearbyInteractions()
+      this.emit({
+        type: 'player_moved',
+        position: player.getPosition(),
+      })
     }
   }
 
@@ -468,6 +446,14 @@ export class GameWorld {
     this.tileMap.update(delta)
     for (const char of this.characters.values()) {
       char.update(delta)
+    }
+
+    // Poll held movement keys each frame for continuous movement
+    if (this.inputEnabled) {
+      const dir = this.inputManager.getMovementDirection()
+      if (dir) {
+        this.movePlayer(dir.dcol, dir.drow)
+      }
     }
   }
 
