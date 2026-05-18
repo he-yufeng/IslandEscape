@@ -87,14 +87,21 @@ export async function getNegotiationReply(
   const context = buildNegotiationContext(state, charId, partnerId, history)
   const systemPrompt = NEGOTIATION_SYSTEM_PROMPT.replace('{PERSONALITY}', personality.systemPrompt)
 
-  const raw = await chatJSON<NegotiationReply>(systemPrompt, context)
-
-  return {
-    text: raw.text || `${personality.name} thinks about it...`,
-    offer: raw.offer,
-    request: raw.request,
-    accept: raw.accept === true,
-    reject: raw.reject === true,
+  try {
+    const raw = await chatJSON<NegotiationReply>(systemPrompt, context)
+    return {
+      text: raw.text || `${personality.name} thinks about it...`,
+      offer: raw.offer,
+      request: raw.request,
+      accept: raw.accept === true,
+      reject: raw.reject === true,
+    }
+  } catch (err) {
+    console.error(`[negotiation] AI reply failed for ${charId}:`, err instanceof Error ? err.message : err)
+    return {
+      text: `${personality.name} looks uncertain and walks away.`,
+      reject: true,
+    }
   }
 }
 
@@ -108,13 +115,20 @@ export async function getAITradeInitiation(
   const systemPrompt = NEGOTIATION_SYSTEM_PROMPT.replace('{PERSONALITY}', personality.systemPrompt)
   const initPrompt = `${context}\n\nYou are starting this negotiation. Make an opening offer.`
 
-  const raw = await chatJSON<NegotiationReply>(systemPrompt, initPrompt)
-
-  return {
-    text: raw.text || `${personality.name} wants to trade with you.`,
-    offer: raw.offer || { fish: 0, wheat: 0, coins: 0 },
-    request: raw.request || { fish: 0, wheat: 0, coins: 0 },
-    accept: false,
-    reject: false,
+  try {
+    const raw = await chatJSON<NegotiationReply>(systemPrompt, initPrompt)
+    return {
+      text: raw.text || `${personality.name} wants to trade with you.`,
+      offer: raw.offer || { fish: 0, wheat: 0, coins: 0 },
+      request: raw.request || { fish: 0, wheat: 0, coins: 0 },
+      accept: false,
+      reject: false,
+    }
+  } catch (err) {
+    console.error(`[negotiation] AI initiation failed for ${charId}:`, err instanceof Error ? err.message : err)
+    return {
+      text: `${personality.name} decides not to trade right now.`,
+      reject: true,
+    }
   }
 }
