@@ -1,0 +1,42 @@
+[
+  {
+    "label": "default",
+    "title": "Coastal Watch",
+    "subtitle": "Move near a resource, trader, or islander to inspect it here.",
+    "fallbackVisible": false,
+    "previewCanvasCount": 1,
+    "totalCanvasCount": 2
+  },
+  {
+    "label": "npc",
+    "title": "Coastal Watch",
+    "subtitle": "Move near a resource, trader, or islander to inspect it here.",
+    "fallbackVisible": false,
+    "previewCanvasCount": 1,
+    "totalCanvasCount": 2
+  },
+  {
+    "label": "farm",
+    "title": "Coastal Watch",
+    "subtitle": "Move near a resource, trader, or islander to inspect it here.",
+    "fallbackVisible": false,
+    "previewCanvasCount": 1,
+    "totalCanvasCount": 2
+  },
+  {
+    "label": "merchant",
+    "title": "Sam",
+    "subtitle": "Close enough to negotiate, trade, or test their patience.",
+    "fallbackVisible": false,
+    "previewCanvasCount": 1,
+    "totalCanvasCount": 2
+  },
+  {
+    "label": "fish",
+    "title": "Coastal Watch",
+    "subtitle": "Move near a resource, trader, or islander to inspect it here.",
+    "fallbackVisible": false,
+    "previewCanvasCount": 1,
+    "totalCanvasCount": 2
+  }
+]
