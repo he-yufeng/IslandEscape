@@ -3,7 +3,6 @@ import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useGameStore, CHARACTER_META } from '@/stores/game'
 import { GameRenderer } from '@/game/GameRenderer'
 import type { InteractionType, GameWorldEvent } from '@/game/GameWorld'
-import type { CharacterId } from '@game/shared'
 
 const emit = defineEmits<{
   'interaction-change': [interaction: InteractionType]

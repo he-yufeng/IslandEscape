@@ -1,7 +1,8 @@
 import { config } from 'dotenv'
 import { z } from 'zod'
 
-config({ path: '../../.env' })
+const shouldOverrideEnv = process.env.NODE_ENV !== 'test' && process.env.VITEST !== 'true'
+config({ path: '../../.env', override: shouldOverrideEnv })
 
 export const EnvSchema = z.object({
   OPENAI_API_KEY: z.string().min(1),

@@ -1,35 +1,61 @@
-import OpenAI from 'openai'
 import { env } from '../env'
 
-let client: OpenAI | null = null
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
 
-export function getClient(): OpenAI {
-  if (!client) {
-    client = new OpenAI({
-      apiKey: env.OPENAI_API_KEY,
-      baseURL: env.OPENAI_BASE_URL || undefined,
-    })
+interface ChatCompletionResponse {
+  choices?: Array<{
+    message?: {
+      content?: string | null
+    }
+  }>
+}
+
+async function createChatCompletion(
+  messages: ChatMessage[],
+  temperature: number,
+  maxTokens: number,
+): Promise<ChatCompletionResponse> {
+  const baseURL = (env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '')
+  const response = await fetch(`${baseURL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: env.OPENAI_MODEL,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+    }),
+  })
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    const detail = body ? `: ${body.slice(0, 300)}` : ''
+    throw new Error(`${response.status} ${response.statusText}${detail}`)
   }
-  return client
+
+  return response.json() as Promise<ChatCompletionResponse>
 }
 
 export async function chatJSON<T>(
   systemPrompt: string,
   userMessage: string,
 ): Promise<T> {
-  const openai = getClient()
-
-  let response: OpenAI.Chat.Completions.ChatCompletion
+  let response: ChatCompletionResponse
   try {
-    response = await openai.chat.completions.create({
-      model: env.OPENAI_MODEL,
-      messages: [
+    response = await createChatCompletion(
+      [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
       ],
-      temperature: 0.8,
-      max_tokens: 1500,
-    })
+      0.8,
+      1500,
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('[llm] API call failed:', message)
@@ -60,16 +86,14 @@ export async function chatText(
   systemPrompt: string,
   messages: { role: 'user' | 'assistant'; content: string }[],
 ): Promise<string> {
-  const openai = getClient()
-  const response = await openai.chat.completions.create({
-    model: env.OPENAI_MODEL,
-    messages: [
+  const response = await createChatCompletion(
+    [
       { role: 'system', content: systemPrompt },
       ...messages,
     ],
-    temperature: 0.9,
-    max_tokens: 200,
-  })
+    0.9,
+    200,
+  )
 
   return response.choices?.[0]?.message?.content ?? ''
 }

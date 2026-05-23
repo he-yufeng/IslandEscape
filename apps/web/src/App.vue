@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import GameCanvas from '@/components/GameCanvas.vue'
 import HUD from '@/components/HUD.vue'
@@ -8,7 +8,6 @@ import InteractionPrompt from '@/components/InteractionPrompt.vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import EventLog from '@/components/EventLog.vue'
 import type { InteractionType } from '@/game/GameWorld'
-import type { CharacterId } from '@game/shared'
 
 const game = useGameStore()
 const gameCanvasRef = ref<InstanceType<typeof GameCanvas> | null>(null)
@@ -33,7 +32,7 @@ function closeActionMenu() {
   game.closeActionMenu()
 }
 
-function onStartNegotiation(_target: CharacterId) {
+function onStartNegotiation() {
   // Negotiation is now opened by submitAction when server responds.
   // Just close the action menu.
   game.closeActionMenu()

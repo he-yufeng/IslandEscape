@@ -8,7 +8,7 @@ import type {
   CharacterState,
   NegotiationMessage,
 } from '@game/shared'
-import { friendshipKey, GAME_CONFIG } from '@game/shared'
+import { friendshipKey } from '@game/shared'
 import { createGame, submitAction as apiSubmitAction, getSSEUrl } from '@/composables/useApi'
 import type { InteractionType } from '@/game/GameWorld'
 
@@ -21,8 +21,8 @@ export interface NegotiationState {
 
 export const CHARACTER_META: Record<string, { name: string; personality: string; emoji: string }> = {
   player: { name: 'You', personality: 'Resourceful', emoji: '🧑' },
-  tom: { name: 'Tom', personality: 'Aggressive Trader', emoji: '🧔' },
-  sam: { name: 'Sam', personality: 'Cautious Hoarder', emoji: '👩' },
+  tom: { name: 'Tom', personality: 'Cautious Fisherman', emoji: '🧔' },
+  sam: { name: 'Sam', personality: 'Aggressive Trader', emoji: '👩' },
   lily: { name: 'Lily', personality: 'Friendly Helper', emoji: '👧' },
   jack: { name: 'Jack', personality: 'Cunning Schemer', emoji: '🤠' },
 }

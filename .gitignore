@@ -1,5 +1,6 @@
 node_modules/
 .pnpm-store/
+.DS_Store
 dist/
 coverage/
 playwright-report/

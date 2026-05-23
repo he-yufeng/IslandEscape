@@ -81,22 +81,21 @@ const logEntries = computed<LogEntry[]>(() => {
 
   // Game state log
   if (game.state?.log) {
-    for (let i = 0; i < game.state.log.length; i++) {
-      const line = game.state.log[i]
+    game.state.log.forEach((line, i) => {
       entries.push({
         id: i,
         text: line,
         type: 'log',
         colorClass: line.startsWith('---') ? 'log-day' : 'log-normal',
       })
-    }
+    })
   }
 
   // SSE events (AI dialogue, trade results, etc.)
-  for (let i = 0; i < game.events.length; i++) {
-    const entry = eventToLogEntry(game.events[i], i)
+  game.events.forEach((event, i) => {
+    const entry = eventToLogEntry(event, i)
     if (entry) entries.push(entry)
-  }
+  })
 
   return entries
 })
