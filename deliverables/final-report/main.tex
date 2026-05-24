@@ -37,13 +37,13 @@ updates, phase transitions, trade execution, and win/loss checks are validated
 by typed game logic. This gives us a game that feels social and emergent without
 handing correctness to an unpredictable model.
 
-During the final development stage, we extended the project with a boss dungeon
-challenge, improved the negotiation interface, added clearer phase and resource
-feedback, and tightened validation across linting, type checking, tests, and
-builds. The resulting prototype demonstrates an integrated game loop: movement,
-resource labor, LLM-based negotiation, persistent game state, real-time AI turn
-events, and an optional action-combat challenge that creates a stronger final
-demo arc.
+During the final development stage, we extended the project with daily random
+events, a day-scaled boss dungeon challenge, improved the negotiation interface,
+clearer phase and resource feedback, and tighter validation across linting, type
+checking, tests, and builds. The resulting prototype demonstrates an integrated
+game loop: movement, resource labor, LLM-based negotiation, persistent game
+state, real-time AI turn events, and an optional action-combat challenge that
+creates a stronger final demo arc.
 \end{abstract}
 
 \section{Project Vision}
@@ -77,7 +77,7 @@ The core loop needed to be understandable within a short presentation. We
 therefore used a daily rhythm:
 
 \begin{enumerate}
-  \item the day starts and merchant prices refresh;
+  \item the day starts, merchant prices refresh, and a daily event is rolled;
   \item the player must perform labor, either fishing or farming;
   \item the player spends up to two trade slots;
   \item AI agents take their turns;
@@ -86,7 +86,8 @@ therefore used a daily rhythm:
 
 This structure gives the game a clean tactical cadence. The player always knows
 what kind of decision they are making: survival first, trade second, then
-consequences.
+consequences. Daily events add controlled variation without changing the phase
+order.
 
 \subsection{LLM agents with constrained authority}
 
@@ -171,6 +172,40 @@ These checks are implemented server-side, not just in UI buttons. That matters
 because the frontend can be bypassed, refreshed, or delayed by LLM calls. The
 server is the authority.
 
+\subsection{Daily random events}
+
+The final gameplay pass adds a daily event system to make repeated days less
+predictable. The event is stored in shared game state as
+\texttt{dailyEvent}, rolled at dawn, written into the day-start log, and shown
+in the HUD as a compact badge. The first two days are always calm so new players
+can learn the loop before modifiers appear. Later days are still often calm, but
+roughly one third introduce a rule change. The most punishing event, drought, is
+suppressed until day 4 so early runs are not decided before players have wheat
+buffers.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+Event & Gameplay effect & Design role \\
+\midrule
+Calm day & Standard rules & Baseline economy \\
+Storm & Fishing yields 2 fish instead of 3 & Pushes scarcity and trade \\
+Festival & Peer-trade friendship gain is doubled & Rewards social play \\
+Lucky Catch & Alive characters gain 2 fish at dawn & Recovery and tempo boost \\
+Drought & Night upkeep costs 2 wheat & Punishes weak farming plans \\
+\bottomrule
+\end{tabular}
+\caption{Daily event variants added to the core economy.}
+\end{table}
+
+These events are implemented inside deterministic game-engine functions rather
+than by the LLM. For example, storm changes the result of fishing labor,
+festival changes the friendship bonus after a peer trade, lucky catch grants
+fish during day start, and drought changes the settlement cost. This keeps event
+play visible and varied while preserving the same server-authoritative rule
+model as the rest of the economy.
+
 \section{AI Agent Design}
 
 \subsection{Agent responsibilities}
@@ -243,9 +278,9 @@ The project is organized as a TypeScript monorepo:
 \end{itemize}
 
 This layout prevents the frontend and backend from drifting apart. Player
-actions, game state, SSE events, and dungeon results are all described in shared
-schemas. The server validates incoming actions against those schemas, while the
-frontend receives inferred TypeScript types.
+actions, game state, daily events, SSE events, and dungeon results are all
+described in shared schemas. The server validates incoming actions against those
+schemas, while the frontend receives inferred TypeScript types.
 
 \subsection{Server as source of truth}
 
@@ -280,8 +315,9 @@ flow. The phase model makes these cases straightforward to reject.
 
 Game sessions are kept in memory for active play and persisted to SQLite through
 Drizzle. The frontend opens an SSE stream for each game. Events include state
-updates, AI thinking, AI decisions, negotiation lines, trade results, settlement
-events, eliminations, escapes, and dungeon events.
+updates carrying the daily event state, AI thinking, AI decisions, negotiation
+lines, trade results, settlement events, eliminations, escapes, and dungeon
+events.
 
 This event model makes the game easier to present. The audience can see that AI
 agents are not silent background calculations; they are taking turns, making
@@ -299,7 +335,7 @@ phase:
 \begin{itemize}
   \item entering costs one trade slot;
   \item only one run is allowed per day;
-  \item winning grants a coin reward;
+  \item winning grants a day-scaled coin reward;
   \item losing removes some fish and wheat;
   \item the player returns to the island flow afterward.
 \end{itemize}
@@ -308,6 +344,17 @@ Inside the dungeon, the player fights a boss using movement, bullets, flash
 movement, an ultimate skill, XP orbs, and upgrade cards. This gives the game a
 second mode without replacing the main economy. The boss fight is not a separate
 game pasted on top; it is another way to make an economic decision under risk.
+
+The later boss update connects combat difficulty to the island day. When the
+frontend enters dungeon mode, it passes the current day into
+\texttt{DungeonArena}. The arena stores that value as a day level and passes it
+to \texttt{Boss.setDifficulty}. Boss maximum HP increases by 50 per day, bullet
+and charge damage increase by one per day with caps, attack cooldowns shrink
+toward a lower bound, and minion spawn pacing, minion caps, and minion health
+also scale upward. Clearing the dungeon also scales the reward by adding 4 coins
+for each day after day 1, capped at 80 coins. This creates a real timing
+tradeoff: entering early is safer but pays less, while delaying the dungeon can
+accelerate escape but makes the fight more dangerous.
 
 \section{Visual Rendering and Animation}
 
@@ -409,8 +456,8 @@ presentation.
   workflow, and demo-readiness checks.
   \item \textbf{Developer 1}: dialogue-related bug fixes and final PPT
   preparation based on the project proposal and new progress.
-  \item \textbf{Developer 2}: boss dungeon feature work, flow polishing, and demo
-  video recording/editing.
+  \item \textbf{Erfei Yu}: daily event gameplay, boss dungeon feature work,
+  day-scaled boss difficulty, flow polishing, and demo video recording/editing.
   \item \textbf{Zhiyuan}: visual rendering, animation, and 3D UI technical
   explanation for the report.
 \end{itemize}
@@ -429,12 +476,12 @@ Island Escape is a prototype, and several limitations are still visible:
   on provider speed and network conditions.
   \item \textbf{Model variability}: different model outputs can change the tone
   and quality of negotiation, even under the same game state.
-  \item \textbf{Balance}: dungeon rewards, merchant prices, and survival costs
-  may need more playtesting.
+  \item \textbf{Balance}: daily events, dungeon scaling, merchant prices, and
+  survival costs may need more playtesting.
   \item \textbf{Presentation risk}: a full game can be slow, so the final demo
   should combine a live short path with an edited video.
-  \item \textbf{Visual completeness}: the rendering section and final screenshots
-  should be updated after the last visual pass.
+  \item \textbf{Visual asset depth}: the current 3D preview models are
+  procedural, so authored models and textures could further improve fidelity.
 \end{itemize}
 
 \section{Future Work}
@@ -462,11 +509,11 @@ way. The language model adds personality, negotiation, and emergence; the
 state machine preserves correctness. That separation is the core engineering
 lesson of the project.
 
-The final prototype combines a readable survival economy, AI-driven NPC
-negotiation, real-time event updates, a polished interaction UI, and a boss
-dungeon that gives the presentation a stronger climax. More importantly, the
-project shows a practical pattern for future AI games: let the model create
-intent and expression, but let typed code own the rules.
+The final prototype combines a readable survival economy, daily random events,
+AI-driven NPC negotiation, real-time event updates, a polished interaction UI,
+and a day-scaled boss dungeon that gives the presentation a stronger climax.
+More importantly, the project shows a practical pattern for future AI games: let
+the model create intent and expression, but let typed code own the rules.
 
 \begin{thebibliography}{9}
 \bibitem{park2023generative}
