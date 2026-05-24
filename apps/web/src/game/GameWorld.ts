@@ -157,6 +157,7 @@ export class GameWorld {
 
   private characterLayer: Container
   private effectsLayer: Container
+  private overlayLayer: Container
   private eventCallback: GameWorldEventCallback | null = null
   private nightOverlay: Graphics | null = null
   private inputEnabled = true
@@ -178,6 +179,10 @@ export class GameWorld {
     this.effectsLayer = new Container()
     this.effectsLayer.label = 'effects'
     this.worldContainer.addChild(this.effectsLayer)
+
+    this.overlayLayer = new Container()
+    this.overlayLayer.label = 'overlay'
+    this.worldContainer.addChild(this.overlayLayer)
 
     // Input manager
     this.inputManager = new InputManager()
@@ -213,6 +218,7 @@ export class GameWorld {
       const character = new Character(config)
       this.characters.set(id, character)
       this.characterLayer.addChild(character.container)
+      this.overlayLayer.addChild(character.overlayContainer)
     }
   }
 
@@ -223,6 +229,7 @@ export class GameWorld {
       char.eliminated = !alive
       char.escaped = escaped
       char.container.visible = alive && !escaped
+      char.overlayContainer.visible = alive && !escaped
     }
   }
 
