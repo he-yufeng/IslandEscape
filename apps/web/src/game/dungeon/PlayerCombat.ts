@@ -30,6 +30,10 @@ export class PlayerCombat {
   private gfx: Graphics
   private aimLine: Graphics
   private flashGfx: Graphics
+  /** Halo + footstep dust drawn under the body. */
+  private auraGfx: Graphics
+  /** Muzzle flash overlay drawn on top of body. */
+  private muzzleGfx: Graphics
   private lastShotTime = 0
   private invincibleUntil = 0
   private flashTimer = 0
@@ -37,6 +41,13 @@ export class PlayerCombat {
   private isMoving = false
   private flashCooldown = 0
   private ultimateCooldown = 0
+  /** Pulses 1→0 when a bullet is fired; drives muzzle flash visual. */
+  private muzzleFlashTimer = 0
+  /** Aim direction snapshot at the moment of last shot — feeds muzzle flash position. */
+  private lastShotAngle = 0
+  /** Footstep particles below the player. */
+  private dustParticles: Array<{ x: number; y: number; vx: number; vy: number; age: number; duration: number }> = []
+  private dustEmitTimer = 0
   // Callbacks
   public onUltimate: (() => void) | null = null
   public onFlash: ((startX: number, startY: number, endX: number, endY: number) => void) | null = null
@@ -58,14 +69,22 @@ export class PlayerCombat {
       critChance: 0,
       flashCooldownMul: 1,
       lifestealHits: 0,
+      explosionRadius: 0,
+      explosionDamageMul: 0.5,
+      magnetRange: 1,
+      hpRegenPerSec: 0,
     }
 
+    this.auraGfx = new Graphics()
     this.gfx = new Graphics()
     this.aimLine = new Graphics()
     this.flashGfx = new Graphics()
+    this.muzzleGfx = new Graphics()
+    container.addChild(this.auraGfx)
     container.addChild(this.gfx)
     container.addChild(this.aimLine)
     container.addChild(this.flashGfx)
+    container.addChild(this.muzzleGfx)
   }
 
   takeDamage(amount: number): boolean {
@@ -84,8 +103,10 @@ export class PlayerCombat {
     return now - this.lastShotTime >= SHOOT_COOLDOWN_MS
   }
 
-  markShot(now: number) {
+  markShot(now: number, angle: number) {
     this.lastShotTime = now
+    this.muzzleFlashTimer = 0.12
+    this.lastShotAngle = angle
   }
 
   update(dt: number, input: InputManager, mouseCanvasX: number, mouseCanvasY: number) {
@@ -104,6 +125,27 @@ export class PlayerCombat {
       this.x = Math.max(PLAYER_SIZE, Math.min(ARENA_W - PLAYER_SIZE, this.x + dx))
       this.y = Math.max(PLAYER_SIZE, Math.min(ARENA_H - PLAYER_SIZE, this.y + dy))
       this.walkFrame += ds
+
+      // Emit footstep dust
+      this.dustEmitTimer += ds
+      if (this.dustEmitTimer > 0.12) {
+        this.dustEmitTimer = 0
+        this.spawnDust()
+      }
+    }
+
+    // Update dust particles
+    for (let i = this.dustParticles.length - 1; i >= 0; i--) {
+      const p = this.dustParticles[i]!
+      p.age += ds
+      if (p.age >= p.duration) {
+        this.dustParticles.splice(i, 1)
+        continue
+      }
+      p.x += p.vx * ds
+      p.y += p.vy * ds
+      p.vx *= 0.92
+      p.vy *= 0.92
     }
 
     // Flash skill (Space)
@@ -131,8 +173,26 @@ export class PlayerCombat {
       this.flashTimer -= ds * 1000
     }
 
+    // Muzzle flash timer
+    this.muzzleFlashTimer = Math.max(0, this.muzzleFlashTimer - ds)
+
     this.draw(mouseCanvasX, mouseCanvasY)
     this.drawSkillCooldowns()
+    this.drawAura()
+    this.drawMuzzleFlash()
+  }
+
+  private spawnDust() {
+    const angle = Math.random() * Math.PI * 2
+    const speed = 14 + Math.random() * 10
+    this.dustParticles.push({
+      x: this.x + (Math.random() - 0.5) * 4,
+      y: this.y + PLAYER_SIZE * 0.85,
+      vx: Math.cos(angle) * speed * 0.4,
+      vy: -Math.abs(Math.sin(angle) * speed) - 6,
+      age: 0,
+      duration: 0.45 + Math.random() * 0.2,
+    })
   }
 
   private draw(mouseX: number, mouseY: number) {
@@ -193,6 +253,44 @@ export class PlayerCombat {
       .stroke({ color: 0xffffff, width: 2, alpha: 0.5 })
   }
 
+  /** Soft glow + footstep dust under the player. */
+  private drawAura() {
+    const g = this.auraGfx
+    g.clear()
+    // Pulsing halo
+    const pulse = 1 + Math.sin(Date.now() * 0.005) * 0.1
+    g.circle(this.x, this.y + PLAYER_SIZE * 0.85, 11 * pulse).fill({ color: 0x88ccff, alpha: 0.18 })
+    g.circle(this.x, this.y + PLAYER_SIZE * 0.85, 7 * pulse).fill({ color: 0xaaddff, alpha: 0.22 })
+    // Dust particles
+    for (const p of this.dustParticles) {
+      const t = 1 - p.age / p.duration
+      const r = 1.6 + (1 - t) * 1.4
+      g.circle(p.x, p.y, r).fill({ color: 0xd0c8a8, alpha: t * 0.65 })
+    }
+  }
+
+  /** Bright muzzle flash that fires on each shot. */
+  private drawMuzzleFlash() {
+    const g = this.muzzleGfx
+    g.clear()
+    if (this.muzzleFlashTimer <= 0) return
+    const t = this.muzzleFlashTimer / 0.12
+    const muzzleX = this.x + Math.cos(this.lastShotAngle) * 14
+    const muzzleY = this.y + Math.sin(this.lastShotAngle) * 14
+    // Outer glow
+    g.circle(muzzleX, muzzleY, 9 + (1 - t) * 3).fill({ color: 0xffaa44, alpha: t * 0.5 })
+    g.circle(muzzleX, muzzleY, 5 + (1 - t) * 2).fill({ color: 0xffee88, alpha: t * 0.85 })
+    g.circle(muzzleX, muzzleY, 2.5).fill({ color: 0xffffff, alpha: t })
+    // Spark streaks
+    for (let i = 0; i < 4; i++) {
+      const a = this.lastShotAngle + (Math.random() - 0.5) * 0.7
+      const len = 8 + Math.random() * 4
+      g.moveTo(muzzleX, muzzleY)
+        .lineTo(muzzleX + Math.cos(a) * len, muzzleY + Math.sin(a) * len)
+        .stroke({ color: 0xffeeaa, width: 1.2, alpha: t * 0.7 })
+    }
+  }
+
   getPosition(): { x: number; y: number } {
     return { x: this.x, y: this.y }
   }
@@ -239,5 +337,7 @@ export class PlayerCombat {
     this.gfx.destroy()
     this.aimLine.destroy()
     this.flashGfx.destroy()
+    this.auraGfx.destroy()
+    this.muzzleGfx.destroy()
   }
 }

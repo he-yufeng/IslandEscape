@@ -31,6 +31,93 @@ export class ScreenShaker {
 }
 
 // ============================================================
+// Hit-stop — freeze the simulation for a brief moment to add weight
+// ============================================================
+
+/**
+ * Brief simulation pause for impact moments. While the timer is active,
+ * `isFrozen()` returns true so update loops can skip work, while visual
+ * effects (drawing, particles in this manager) keep advancing.
+ */
+export class HitStop {
+  private timer = 0
+  private duration = 0
+
+  trigger(durationSec: number) {
+    if (durationSec > this.timer) {
+      this.timer = durationSec
+      this.duration = durationSec
+    }
+  }
+
+  /** Advance the timer with real time. Returns true while still frozen. */
+  tick(realDs: number): boolean {
+    if (this.timer <= 0) return false
+    this.timer = Math.max(0, this.timer - realDs)
+    return this.timer > 0
+  }
+
+  isFrozen(): boolean {
+    return this.timer > 0
+  }
+
+  /** 0 → 1 progress through the freeze window — useful for a fade overlay. */
+  progress(): number {
+    if (this.duration === 0) return 0
+    return 1 - this.timer / this.duration
+  }
+}
+
+// ============================================================
+// Full-screen flash — quick white/coloured curtain for big moments
+// ============================================================
+
+export class ScreenFlash {
+  private gfx: Graphics
+  private timer = 0
+  private duration = 0
+  private peak = 0
+  private color = 0xffffff
+  private w: number
+  private h: number
+
+  constructor(container: Container, width: number, height: number) {
+    this.w = width
+    this.h = height
+    this.gfx = new Graphics()
+    this.gfx.alpha = 0
+    container.addChild(this.gfx)
+  }
+
+  trigger(durationSec: number, peakAlpha = 0.85, color = 0xffffff) {
+    if (peakAlpha > this.peak || this.timer >= this.duration) {
+      this.duration = durationSec
+      this.timer = 0
+      this.peak = peakAlpha
+      this.color = color
+      this.gfx.clear()
+      this.gfx.rect(0, 0, this.w, this.h).fill(this.color)
+    }
+  }
+
+  update(ds: number) {
+    if (this.timer >= this.duration) {
+      if (this.gfx.alpha !== 0) this.gfx.alpha = 0
+      return
+    }
+    this.timer += ds
+    const t = Math.min(1, this.timer / this.duration)
+    // Fast attack, slower decay
+    const env = t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85
+    this.gfx.alpha = this.peak * Math.max(0, env)
+  }
+
+  destroy() {
+    this.gfx.destroy()
+  }
+}
+
+// ============================================================
 // Hit spark pool — small particles on bullet hit
 // ============================================================
 
