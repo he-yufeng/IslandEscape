@@ -4,17 +4,23 @@
 
 import { Application } from 'pixi.js'
 import { GameWorld } from './GameWorld'
+import { DungeonArena } from './dungeon/DungeonArena'
+import type { DungeonEvent } from './dungeon/DungeonArena'
 import { MAP_COLS, MAP_ROWS, TILE_SIZE } from './tiles'
 
 export class GameRenderer {
   public app: Application
   public world: GameWorld
+  public dungeon: DungeonArena
   private mounted = false
   private resizeObserver: ResizeObserver | null = null
+  private dungeonActive = false
+  private dungeonCallback: ((event: DungeonEvent) => void) | null = null
 
   constructor() {
     this.app = new Application()
     this.world = new GameWorld()
+    this.dungeon = new DungeonArena()
   }
 
   /** Initialize the PixiJS application and mount to a container element */
@@ -41,18 +47,51 @@ export class GameRenderer {
 
     container.appendChild(canvas)
 
-    // Add the world to the stage
+    // Add the world and dungeon to the stage
     this.app.stage.addChild(this.world.worldContainer)
+    this.app.stage.addChild(this.dungeon)
+    this.dungeon.visible = false
 
     // Start the game loop
     this.app.ticker.add((ticker) => {
-      this.world.update(ticker.deltaTime)
+      if (this.dungeonActive) {
+        const rect = canvas.getBoundingClientRect()
+        this.world.inputManager.setCanvasRect(rect, MAP_COLS * TILE_SIZE, MAP_ROWS * TILE_SIZE)
+        this.dungeon.update(ticker.deltaTime, this.world.inputManager)
+      } else {
+        this.world.update(ticker.deltaTime)
+      }
     })
 
     this.mounted = true
 
     // Setup responsive sizing
     this.setupResponsiveSize(container)
+  }
+
+  onDungeonEvent(callback: (event: DungeonEvent) => void) {
+    this.dungeonCallback = callback
+    this.dungeon.onEvent(callback)
+  }
+
+  enterDungeonMode() {
+    this.world.worldContainer.visible = false
+    this.dungeon.visible = true
+    this.dungeon.init()
+    this.dungeonActive = true
+    this.world.setInputEnabled(true)
+  }
+
+  exitDungeonMode() {
+    this.dungeonActive = false
+    this.dungeon.visible = false
+    this.dungeon.destroyArena()
+    this.world.worldContainer.visible = true
+    this.world.setInputEnabled(true)
+  }
+
+  isDungeonActive(): boolean {
+    return this.dungeonActive
   }
 
   private setupResponsiveSize(container: HTMLElement) {
@@ -85,6 +124,7 @@ export class GameRenderer {
       this.resizeObserver = null
     }
     this.world.destroy()
+    this.dungeon.destroyArena()
     this.app.destroy(true, { children: true })
     this.mounted = false
   }

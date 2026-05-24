@@ -21,6 +21,19 @@ export const GAME_CONFIG = {
   FRIENDSHIP_TRADE_BONUS: 5,
   MERCHANT_FISH_PRICE_RANGE: [2, 6] as const,
   MERCHANT_WHEAT_PRICE_RANGE: [1, 4] as const,
+  // Dungeon
+  PLAYER_MAX_HP: 15,
+  BOSS_MAX_HP: 60,
+  BASE_BULLET_DAMAGE: 2,
+  BASE_BULLET_COOLDOWN: 400,
+  BASE_MOVE_SPEED: 160,
+  BOSS_BULLET_DAMAGE: 3,
+  BOSS_CHARGE_DAMAGE: 5,
+  BOSS_CHARGE_SPEED: 300,
+  DUNGEON_COIN_REWARD: 20,
+  DUNGEON_RESOURCE_PENALTY: 5,
+  XP_PER_ORB: 10,
+  XP_THRESHOLDS: [30, 60, 100, 150, 210, 280, 360] as readonly number[],
 } as const
 
 // ----- Character & resource types -----
@@ -128,6 +141,21 @@ export const NegotiationMessageSchema = z.object({
 })
 export type NegotiationMessage = z.infer<typeof NegotiationMessageSchema>
 
+// ----- Dungeon -----
+
+export const DungeonResultSchema = z.object({
+  win: z.boolean(),
+  damageDealt: z.number().int(),
+  damageTaken: z.number().int(),
+  cardsCollected: z.number().int(),
+})
+export type DungeonResult = z.infer<typeof DungeonResultSchema>
+
+export const DungeonStateSchema = z.object({
+  active: z.boolean(),
+})
+export type DungeonState = z.infer<typeof DungeonStateSchema>
+
 // ----- Day phase -----
 
 export const DayPhaseSchema = z.enum([
@@ -157,6 +185,7 @@ export const GameStateSchema = z.object({
   winnerId: CharacterIdSchema.nullable(),
   aiTurnOrder: z.array(CharacterIdSchema),
   currentAiIndex: z.number().int(),
+  dungeonState: DungeonStateSchema.nullable().default(null),
   updatedAt: z.string().datetime(),
 })
 export type GameState = z.infer<typeof GameStateSchema>
@@ -185,6 +214,9 @@ export const PlayerActionSchema = z.discriminatedUnion('type', [
     accept: z.boolean().optional(),
   }),
   z.object({ type: z.literal('end_turn') }),
+  z.object({ type: z.literal('enter_dungeon') }),
+  z.object({ type: z.literal('dungeon_result'), result: DungeonResultSchema }),
+  z.object({ type: z.literal('leave_dungeon') }),
 ])
 export type PlayerAction = z.infer<typeof PlayerActionSchema>
 
@@ -203,6 +235,7 @@ export const GameSSEEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('day_start'), day: z.number(), merchantPrices: MerchantPricesSchema }),
   z.object({ type: z.literal('log'), message: z.string() }),
   z.object({ type: z.literal('error'), message: z.string() }),
+  z.object({ type: z.literal('dungeon_event'), message: z.string() }),
 ])
 export type GameSSEEvent = z.infer<typeof GameSSEEventSchema>
 

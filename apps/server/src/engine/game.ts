@@ -6,6 +6,7 @@ import {
   type AIDecision,
   type AITradeDecision,
   type MerchantPrices,
+  type DungeonResult,
   ALL_CHARACTERS,
   AI_CHARACTERS,
   GAME_CONFIG,
@@ -79,6 +80,7 @@ export function createNewGame(gameId: string): GameState {
     winnerId: null,
     aiTurnOrder: [],
     currentAiIndex: 0,
+    dungeonState: null,
     updatedAt: nowIso(),
   }
 }
@@ -163,6 +165,12 @@ export function applyPlayerAction(state: GameState, action: PlayerAction): GameS
       case 'negotiate_reply':
         // Handled at route level
         return state
+      case 'enter_dungeon':
+        return enterDungeon(state)
+      case 'dungeon_result':
+        return resolveDungeon(state, action.result)
+      case 'leave_dungeon':
+        return leaveDungeon(state)
       case 'end_turn':
         return { ...state, phase: 'ai_turns', updatedAt: nowIso() }
       default:
@@ -273,6 +281,78 @@ export function settle(state: GameState): GameState {
     escapedIds,
     winnerId,
     phase: isGameOver ? 'game_over' : 'day_end',
+    updatedAt: nowIso(),
+  }
+}
+
+// ---- Dungeon ----
+
+export function enterDungeon(state: GameState): GameState {
+  const player = state.characters.player
+  if (!player) throw new Error('Player not found')
+  if (state.dungeonState?.active) throw new Error('Already in dungeon')
+  if (player.tradeSlots <= 0) throw new Error('No trade slots remaining')
+
+  const newState: GameState = {
+    ...state,
+    characters: {
+      ...state.characters,
+      player: { ...player, tradeSlots: player.tradeSlots - 1 },
+    },
+    dungeonState: { active: true },
+    updatedAt: nowIso(),
+  }
+  return addLog(newState, 'Player entered the dungeon!')
+}
+
+export function resolveDungeon(state: GameState, result: DungeonResult): GameState {
+  const player = state.characters.player
+  if (!player) return state
+
+  let newState: GameState = {
+    ...state,
+    dungeonState: null,
+    updatedAt: nowIso(),
+  }
+
+  if (result.win) {
+    const updatedPlayer = {
+      ...player,
+      resources: {
+        ...player.resources,
+        coins: player.resources.coins + GAME_CONFIG.DUNGEON_COIN_REWARD,
+      },
+    }
+    newState = {
+      ...newState,
+      characters: { ...newState.characters, player: updatedPlayer },
+    }
+    newState = addLog(newState, `Player defeated the boss! +${GAME_CONFIG.DUNGEON_COIN_REWARD} coins.`)
+  } else {
+    const fishLoss = Math.min(player.resources.fish, GAME_CONFIG.DUNGEON_RESOURCE_PENALTY)
+    const wheatLoss = Math.min(player.resources.wheat, GAME_CONFIG.DUNGEON_RESOURCE_PENALTY)
+    const updatedPlayer = {
+      ...player,
+      resources: {
+        ...player.resources,
+        fish: player.resources.fish - fishLoss,
+        wheat: player.resources.wheat - wheatLoss,
+      },
+    }
+    newState = {
+      ...newState,
+      characters: { ...newState.characters, player: updatedPlayer },
+    }
+    newState = addLog(newState, `Player was defeated! Lost ${fishLoss} fish and ${wheatLoss} wheat.`)
+  }
+
+  return newState
+}
+
+export function leaveDungeon(state: GameState): GameState {
+  return {
+    ...state,
+    dungeonState: null,
     updatedAt: nowIso(),
   }
 }

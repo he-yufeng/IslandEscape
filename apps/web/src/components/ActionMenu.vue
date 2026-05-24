@@ -35,6 +35,8 @@ const menuTitle = computed(() => {
       return 'Farmland'
     case 'merchant':
       return 'Merchant Ship'
+    case 'dungeon':
+      return 'Dark Cave'
     default:
       return ''
   }
@@ -53,6 +55,11 @@ async function doFarm() {
 function startTrade(target: CharacterId) {
   // Don't send API yet — open dialogue panel and let player type first message
   game.openNegotiation(target, `conv_${Date.now()}`)
+  emit('close')
+}
+
+async function enterDungeon() {
+  await game.submitAction({ type: 'enter_dungeon' })
   emit('close')
 }
 
@@ -168,6 +175,23 @@ async function doMerchantSell() {
       >
         <span class="action-icon">Sell</span>
         <span>Sell to Merchant</span>
+      </button>
+    </div>
+
+    <!-- Dungeon -->
+    <div v-else-if="isTradePhase && interaction.kind === 'dungeon'" class="menu-body">
+      <div class="phase-tag dungeon-tag">DUNGEON</div>
+      <div class="menu-info">
+        A dark cave looms before you. Something dangerous lurks inside...
+      </div>
+      <button
+        class="menu-action-btn dungeon-btn"
+        :disabled="game.playerTradeSlots <= 0 || game.isLoading"
+        @click="enterDungeon"
+      >
+        <span class="action-icon">⚔️</span>
+        <span>Enter the Dungeon</span>
+        <span class="action-cost">{{ game.playerTradeSlots > 0 ? '(1 trade slot)' : '(No trade slots)' }}</span>
       </button>
     </div>
   </div>
@@ -342,5 +366,21 @@ async function doMerchantSell() {
 .phase-tag.trade {
   background: #3a3a6a;
   color: #80a0ff;
+}
+.phase-tag.dungeon-tag {
+  background: #5a1a1a;
+  color: #ff6644;
+}
+.dungeon-btn {
+  border-color: #6a3a3a !important;
+  background: #3a1a1a !important;
+}
+.dungeon-btn:hover:not(:disabled) {
+  background: #5a2a2a !important;
+  border-color: #aa4444 !important;
+}
+.action-cost {
+  font-size: 9px;
+  color: #aa6666;
 }
 </style>

@@ -171,6 +171,22 @@ watch(
     }
   },
 )
+
+// Watch for dungeon mode
+watch(
+  () => game.dungeonMode,
+  (active) => {
+    if (!renderer) return
+    if (active) {
+      renderer.enterDungeonMode()
+      renderer.onDungeonEvent((event) => {
+        game.onDungeonEvent(event as unknown as Record<string, unknown> & { type: string })
+      })
+    } else if (renderer.isDungeonActive()) {
+      renderer.exitDungeonMode()
+    }
+  },
+)
 </script>
 
 <template>

@@ -18,6 +18,7 @@ const COLORS: Record<TileType, number> = {
   rock: 0x808080,
   fishing_spot: 0x1a7ab5,
   path: 0xc4a96a,
+  cave: 0x1a1a2e,
 }
 
 export class TileMap {
@@ -88,6 +89,10 @@ export class TileMap {
         break
       case 'fishing_spot':
         this.drawFishingSpot(g)
+        break
+      case 'cave':
+        g.rect(0, 0, TILE_SIZE, TILE_SIZE).fill(0x5b9a3e) // grass base
+        this.drawCave(g)
         break
       case 'path':
         g.rect(0, 0, TILE_SIZE, TILE_SIZE).fill(baseColor)
@@ -187,6 +192,21 @@ export class TileMap {
     g.poly([22, 16, 26, 12, 26, 20]).fill({ color: 0xffaa44, alpha: 0.7 })
     // Sparkle
     g.circle(10, 10, 2).fill({ color: 0xffffff, alpha: 0.5 })
+  }
+
+  private drawCave(g: Graphics) {
+    // Dark cave entrance
+    g.ellipse(16, 20, 12, 8).fill(0x1a1a2e)
+    // Rock arch
+    g.poly([2, 20, 2, 8, 6, 4, 12, 2, 18, 2, 24, 4, 28, 8, 28, 20])
+      .fill({ color: 0x666666, alpha: 0.0 })
+      .stroke({ color: 0x666666, width: 2 })
+    // Inner darkness
+    g.ellipse(16, 18, 8, 5).fill(0x0d0d1a)
+    g.ellipse(16, 17, 4, 3).fill(0x050510)
+    // Glowing eyes
+    g.circle(12, 16, 2).fill({ color: 0xff4444, alpha: 0.7 })
+    g.circle(20, 16, 2).fill({ color: 0xff4444, alpha: 0.7 })
   }
 
   private drawPathTexture(g: Graphics) {

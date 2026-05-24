@@ -42,6 +42,13 @@ export const useGameStore = defineStore('game', () => {
   const showDialoguePanel = ref(false)
   const dialogueTarget = ref<CharacterId | null>(null)
 
+  // ---- Dungeon state ----
+  const dungeonMode = ref(false)
+  const showCardPicker = ref(false)
+  const pendingCards = ref<Array<{ id: string; name: string; description: string; icon: string }>>([])
+  const dungeonStats = ref({ hp: 15, maxHp: 15, bossHp: 60, bossMaxHp: 60, xp: 0, xpNext: 30 })
+  const dungeonResult = ref<{ win: boolean; damageDealt: number; damageTaken: number; cardsCollected: number } | null>(null)
+
   // ---- SSE management ----
   let eventSource: EventSource | null = null
 
@@ -131,6 +138,14 @@ export const useGameStore = defineStore('game', () => {
         setTimeout(() => {
           closeNegotiation()
         }, 2000)
+      }
+
+      // Enter dungeon mode if state indicates active dungeon
+      if (state.value?.dungeonState?.active && !dungeonMode.value) {
+        dungeonMode.value = true
+      }
+      if (!state.value?.dungeonState?.active && dungeonMode.value && !dungeonResult.value) {
+        dungeonMode.value = false
       }
     } finally {
       isLoading.value = false
@@ -231,6 +246,69 @@ export const useGameStore = defineStore('game', () => {
     showActionMenu.value = false
   }
 
+  // ---- Dungeon methods ----
+  function enterDungeon() {
+    dungeonMode.value = true
+    showActionMenu.value = false
+  }
+
+  function onDungeonEvent(event: { type: string; [key: string]: unknown }) {
+    switch (event.type) {
+      case 'card_pick': {
+        pendingCards.value = event.cards as Array<{ id: string; name: string; description: string; icon: string }>
+        showCardPicker.value = true
+        break
+      }
+      case 'stats_update': {
+        dungeonStats.value = {
+          hp: event.hp as number,
+          maxHp: event.maxHp as number,
+          bossHp: event.bossHp as number,
+          bossMaxHp: event.bossMaxHp as number,
+          xp: event.xp as number,
+          xpNext: event.xpNext as number,
+        }
+        break
+      }
+      case 'boss_defeated':
+      case 'player_died':
+        dungeonResult.value = {
+          win: event.type === 'boss_defeated',
+          damageDealt: event.damageDealt as number,
+          damageTaken: event.damageTaken as number,
+          cardsCollected: event.cardsCollected as number,
+        }
+        break
+    }
+  }
+
+  function pickCard(cardId: string) {
+    pendingCards.value = []
+    showCardPicker.value = false
+  }
+
+  async function submitDungeonResult(win: boolean) {
+    if (!gameId.value) return
+    const result = {
+      win,
+      damageDealt: dungeonResult.value?.damageDealt ?? 0,
+      damageTaken: dungeonResult.value?.damageTaken ?? 0,
+      cardsCollected: dungeonResult.value?.cardsCollected ?? 0,
+    }
+    dungeonResult.value = null
+    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 60, bossMaxHp: 60, xp: 0, xpNext: 30 }
+    await submitAction({ type: 'dungeon_result', result })
+    // dungeonMode will be set to false by the submitAction handler when state.dungeonState becomes null
+  }
+
+  async function leaveDungeon() {
+    if (!gameId.value) return
+    dungeonResult.value = null
+    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 60, bossMaxHp: 60, xp: 0, xpNext: 30 }
+    await submitAction({ type: 'leave_dungeon' })
+    // dungeonMode will be set to false by the submitAction handler
+  }
+
   return {
     // state
     gameId,
@@ -267,5 +345,16 @@ export const useGameStore = defineStore('game', () => {
     setInteraction,
     openActionMenu,
     closeActionMenu,
+    // dungeon
+    dungeonMode,
+    showCardPicker,
+    pendingCards,
+    dungeonStats,
+    dungeonResult,
+    enterDungeon,
+    onDungeonEvent,
+    pickCard,
+    submitDungeonResult,
+    leaveDungeon,
   }
 })

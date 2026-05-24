@@ -94,6 +94,44 @@ const routes: FastifyPluginAsync = async (fastify) => {
     const action = parsed.data
 
     try {
+      // ---- Dungeon actions ----
+
+      // Guard: if in dungeon, only allow dungeon actions
+      if (session.state.dungeonState?.active &&
+          action.type !== 'enter_dungeon' &&
+          action.type !== 'dungeon_result' &&
+          action.type !== 'leave_dungeon') {
+        return reply.status(400).send({ code: 'IN_DUNGEON', message: 'You are in a dungeon! Finish or leave first.' })
+      }
+
+      if (action.type === 'enter_dungeon') {
+        if (session.state.phase !== 'player_trade') {
+          return reply.status(400).send({ code: 'WRONG_PHASE', message: 'Can only enter dungeon during trade phase' })
+        }
+        const player = session.state.characters.player
+        if (!player || player.tradeSlots <= 0) {
+          return reply.status(400).send({ code: 'NO_TRADE_SLOTS', message: 'No trade slots remaining' })
+        }
+        session.state = applyPlayerAction(session.state, action)
+        broadcastSSE(id, { type: 'state_update', state: session.state })
+        await persistGame(id, session.state)
+        return reply.send({ state: session.state })
+      }
+
+      if (action.type === 'dungeon_result') {
+        session.state = applyPlayerAction(session.state, action)
+        broadcastSSE(id, { type: 'state_update', state: session.state })
+        await persistGame(id, session.state)
+        return reply.send({ state: session.state })
+      }
+
+      if (action.type === 'leave_dungeon') {
+        session.state = applyPlayerAction(session.state, action)
+        broadcastSSE(id, { type: 'state_update', state: session.state })
+        await persistGame(id, session.state)
+        return reply.send({ state: session.state })
+      }
+
       // Handle trade_peer: start negotiation with NPC
       if (action.type === 'trade_peer') {
         const player = session.state.characters.player

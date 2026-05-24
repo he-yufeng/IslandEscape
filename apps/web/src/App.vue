@@ -7,6 +7,7 @@ import DialoguePanel from '@/components/DialoguePanel.vue'
 import InteractionPrompt from '@/components/InteractionPrompt.vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import EventLog from '@/components/EventLog.vue'
+import CardPicker from '@/components/CardPicker.vue'
 import type { InteractionType } from '@/game/GameWorld'
 
 const game = useGameStore()
@@ -50,6 +51,19 @@ async function endTurn() {
   game.closeActionMenu()
   await game.submitAction({ type: 'end_turn' })
 }
+
+function onDungeonCardPicked(cardId: string) {
+  game.pickCard(cardId)
+  const renderer = gameCanvasRef.value?.getRenderer()
+  if (renderer?.isDungeonActive()) {
+    renderer.dungeon.applyCardPick(cardId)
+  }
+}
+
+async function onDungeonResult(win: boolean) {
+  await game.submitDungeonResult(win)
+}
+
 
 const showGameOverOverlay = computed(() => {
   return game.isGameOver && game.state
@@ -140,7 +154,38 @@ const gameOverMessage = computed(() => {
             </div>
           </div>
         </Transition>
+
+        <!-- Dungeon HUD -->
+        <div v-if="game.dungeonMode && !game.dungeonResult" class="dungeon-hud">
+          <div class="dungeon-hud-item">
+            <span class="hud-label">HP</span>
+            <div class="hud-bar-bg"><div class="hud-bar-fill player-bar" :style="{ width: (game.dungeonStats.hp / game.dungeonStats.maxHp * 100) + '%' }" /></div>
+            <span class="hud-val">{{ game.dungeonStats.hp }}/{{ game.dungeonStats.maxHp }}</span>
+          </div>
+          <div class="dungeon-hud-item boss-item">
+            <span class="hud-label">Giant Crab</span>
+            <div class="hud-bar-bg boss-bar-bg"><div class="hud-bar-fill boss-bar" :style="{ width: (game.dungeonStats.bossHp / game.dungeonStats.bossMaxHp * 100) + '%' }" /></div>
+          </div>
+          <div class="dungeon-hud-item xp-item">
+            <span class="hud-label">XP</span>
+            <div class="hud-bar-bg xp-bar-bg"><div class="hud-bar-fill xp-bar" :style="{ width: (game.dungeonStats.xp / game.dungeonStats.xpNext * 100) + '%' }" /></div>
+          </div>
+        </div>
+
+        <!-- Dungeon Result -->
+        <div v-if="game.dungeonResult" class="dungeon-result-overlay">
+          <div class="dungeon-result-box">
+            <h2 :class="game.dungeonResult.win ? 'result-v' : 'result-d'">{{ game.dungeonResult.win ? 'VICTORY!' : 'DEFEATED' }}</h2>
+            <p>Damage dealt: {{ game.dungeonResult.damageDealt }}</p>
+            <p>Damage taken: {{ game.dungeonResult.damageTaken }}</p>
+            <p>Cards: {{ game.dungeonResult.cardsCollected }}</p>
+            <button class="dungeon-leave-btn" @click="onDungeonResult(!!game.dungeonResult?.win)">Return to Island</button>
+          </div>
+        </div>
       </div>
+
+      <!-- Card Picker -->
+      <CardPicker @select="onDungeonCardPicked" />
 
       <!-- Dialogue Panel (right side) -->
       <Transition name="slide-right">
@@ -476,6 +521,74 @@ const gameOverMessage = computed(() => {
 .gameover-btn:hover {
   background: #d4730a;
 }
+
+/* ===== Dungeon HUD ===== */
+.dungeon-hud {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  display: flex;
+  gap: 8px;
+  z-index: 50;
+  pointer-events: none;
+}
+.dungeon-hud-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: monospace;
+  font-size: 10px;
+}
+.boss-item { flex: 1; justify-content: center; }
+.xp-item { min-width: 80px; }
+.hud-label { color: #aabbcc; font-size: 9px; font-weight: bold; min-width: 20px; }
+.hud-val { color: #ccdddd; font-size: 9px; }
+.hud-bar-bg { flex: 1; height: 8px; background: #3a3a5a; border-radius: 3px; overflow: hidden; }
+.boss-bar-bg { max-width: 120px; }
+.xp-bar-bg { background: #2a3a2a; }
+.hud-bar-fill { height: 100%; border-radius: 3px; transition: width 0.2s; }
+.player-bar { background: linear-gradient(90deg, #22aa55, #44dd77); }
+.boss-bar { background: linear-gradient(90deg, #cc3333, #ff5555); }
+.xp-bar { background: linear-gradient(90deg, #44aaff, #88ccff); }
+
+/* ===== Dungeon Result ===== */
+.dungeon-result-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 60;
+  pointer-events: auto;
+}
+.dungeon-result-box {
+  background: #1a1a2e;
+  border: 2px solid #4a4a6a;
+  border-radius: 12px;
+  padding: 24px 40px;
+  text-align: center;
+  font-family: monospace;
+}
+.result-v { color: #ffcc44; font-size: 28px; font-weight: 900; margin: 0 0 12px; }
+.result-d { color: #ff4444; font-size: 28px; font-weight: 900; margin: 0 0 12px; }
+.dungeon-result-box p { color: #aabbcc; font-size: 12px; margin: 4px 0; }
+.dungeon-leave-btn {
+  margin-top: 12px;
+  padding: 8px 24px;
+  background: #334466;
+  border: 1px solid #4a6a8a;
+  border-radius: 4px;
+  color: #c8d8e8;
+  font-family: monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dungeon-leave-btn:hover { background: #445577; }
 
 /* ===== Transitions ===== */
 .popup-enter-active {
