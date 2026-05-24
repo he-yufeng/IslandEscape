@@ -24,6 +24,20 @@ const isTradePhase = computed(() => game.phase === 'player_trade')
 const maxFish = computed(() => game.playerState?.resources.fish ?? 0)
 const maxWheat = computed(() => game.playerState?.resources.wheat ?? 0)
 
+// Friendship for NPC interactions
+const npcFriendship = computed(() => {
+  if (props.interaction?.kind !== 'npc') return null
+  return game.getFriendship(props.interaction.characterId)
+})
+const npcFriendshipHearts = computed(() => {
+  const f = npcFriendship.value ?? 0
+  if (f >= 35) return { filled: 4, empty: 0, text: '♥♥♥♥ Best Friends' }
+  if (f >= 25) return { filled: 3, empty: 1, text: '♥♥♥ Good Friends' }
+  if (f >= 15) return { filled: 2, empty: 2, text: '♥♥ Friendly' }
+  if (f >= 5)  return { filled: 1, empty: 3, text: '♥ Acquaintance' }
+  return { filled: 0, empty: 4, text: '♡ Stranger' }
+})
+
 const menuTitle = computed(() => {
   if (!props.interaction) return ''
   switch (props.interaction.kind) {
@@ -58,9 +72,12 @@ function startTrade(target: CharacterId) {
 
 async function doMerchantSell() {
   if (fishSellQty.value <= 0 && wheatSellQty.value <= 0) return
+  // Clamp to available resources
+  const fish = Math.min(fishSellQty.value, maxFish.value)
+  const wheat = Math.min(wheatSellQty.value, maxWheat.value)
   await game.submitAction({
     type: 'trade_merchant',
-    sell: { fish: fishSellQty.value, wheat: wheatSellQty.value },
+    sell: { fish, wheat },
   })
   fishSellQty.value = 0
   wheatSellQty.value = 0
@@ -105,14 +122,32 @@ async function doMerchantSell() {
       <div class="menu-info">
         {{ CHARACTER_META[interaction.characterId]?.personality ?? '' }}
       </div>
+      <div class="npc-friendship">
+        <span v-for="i in npcFriendshipHearts.filled" :key="'f'+i" class="heart-icon heart-filled">&#x2665;</span>
+        <span v-for="i in npcFriendshipHearts.empty" :key="'e'+i" class="heart-icon heart-empty">&#x2661;</span>
+        <span class="friendship-text">{{ npcFriendshipHearts.text }}</span>
+      </div>
+      <!-- Has ongoing negotiation with this NPC? Allow reopening even with 0 slots -->
       <button
+        v-if="game.activeNegotiation?.target === interaction.characterId"
         class="menu-action-btn"
-        :disabled="game.playerTradeSlots <= 0 || game.isLoading"
+        :disabled="game.isLoading"
+        @click="startTrade(interaction.characterId)"
+      >
+        <span class="action-icon">Chat</span>
+        <span>Continue conversation</span>
+      </button>
+      <!-- No ongoing negotiation: need trade slots -->
+      <button
+        v-else
+        class="menu-action-btn"
+        :disabled="game.playerTradeSlots <= 0 || !game.canTradeWithNpc(interaction.characterId) || game.isLoading"
         @click="startTrade(interaction.characterId)"
       >
         <span class="action-icon">Trade</span>
         <span>Negotiate a trade</span>
         <span v-if="game.playerTradeSlots <= 0" class="action-note">(No trade slots)</span>
+        <span v-else-if="!game.canTradeWithNpc(interaction.characterId)" class="action-note">(Already traded today)</span>
       </button>
     </div>
 
@@ -133,42 +168,48 @@ async function doMerchantSell() {
         <span>Wheat: {{ game.merchantPrices.wheatPrice }}c each</span>
       </div>
 
-      <div class="merchant-sell-row">
-        <label>Sell Fish:</label>
-        <input
-          v-model.number="fishSellQty"
-          type="number"
-          :min="0"
-          :max="maxFish"
-          class="merchant-input"
-        />
-        <button class="max-btn" @click="fishSellQty = maxFish">MAX</button>
-      </div>
+      <template v-if="game.playerTradeSlots > 0">
+        <div class="merchant-sell-row">
+          <label>Sell Fish:</label>
+          <input
+            v-model.number="fishSellQty"
+            type="number"
+            :min="0"
+            :max="maxFish"
+            class="merchant-input"
+          />
+          <button class="max-btn" @click="fishSellQty = maxFish">MAX</button>
+        </div>
 
-      <div class="merchant-sell-row">
-        <label>Sell Wheat:</label>
-        <input
-          v-model.number="wheatSellQty"
-          type="number"
-          :min="0"
-          :max="maxWheat"
-          class="merchant-input"
-        />
-        <button class="max-btn" @click="wheatSellQty = maxWheat">MAX</button>
-      </div>
+        <div class="merchant-sell-row">
+          <label>Sell Wheat:</label>
+          <input
+            v-model.number="wheatSellQty"
+            type="number"
+            :min="0"
+            :max="maxWheat"
+            class="merchant-input"
+          />
+          <button class="max-btn" @click="wheatSellQty = maxWheat">MAX</button>
+        </div>
 
-      <div class="merchant-total">
-        Total: {{ fishSellQty * game.merchantPrices.fishPrice + wheatSellQty * game.merchantPrices.wheatPrice }} coins
-      </div>
+        <div class="merchant-total">
+          Total: {{ fishSellQty * game.merchantPrices.fishPrice + wheatSellQty * game.merchantPrices.wheatPrice }} coins
+        </div>
 
-      <button
-        class="menu-action-btn"
-        :disabled="(fishSellQty <= 0 && wheatSellQty <= 0) || game.isLoading"
-        @click="doMerchantSell"
-      >
-        <span class="action-icon">Sell</span>
+        <button
+          class="menu-action-btn"
+          :disabled="(fishSellQty <= 0 && wheatSellQty <= 0) || game.isLoading"
+          @click="doMerchantSell"
+        >
+          <span class="action-icon">Sell</span>
         <span>Sell to Merchant</span>
       </button>
+      </template>
+
+      <div v-else class="menu-note">
+        No trade slots remaining. End your turn to continue.
+      </div>
     </div>
   </div>
 </template>
@@ -270,6 +311,30 @@ async function doMerchantSell() {
   font-size: 10px;
   color: #6a7a8a;
   padding-left: 4px;
+}
+
+.npc-friendship {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: rgba(255, 107, 157, 0.08);
+  border-radius: 4px;
+}
+.heart-icon {
+  font-size: 12px;
+}
+.heart-filled {
+  color: #ff6b9d;
+}
+.heart-empty {
+  color: #5a5a7a;
+  opacity: 0.5;
+}
+.friendship-text {
+  margin-left: 4px;
+  font-size: 9px;
+  color: #ff8fab;
 }
 
 .merchant-prices {

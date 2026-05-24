@@ -94,11 +94,28 @@ const routes: FastifyPluginAsync = async (fastify) => {
     const action = parsed.data
 
     try {
+      // BUG 6: Phase check — trade actions only valid during player_trade
+      if ((action.type === 'trade_peer' || action.type === 'negotiate_reply') &&
+          session.state.phase !== 'player_trade') {
+        return reply.status(400).send({ code: 'WRONG_PHASE', message: 'Trading is only available during the trade phase.' })
+      }
+
       // Handle trade_peer: start negotiation with NPC
       if (action.type === 'trade_peer') {
         const player = session.state.characters.player
         if (!player || player.tradeSlots <= 0) {
           return reply.status(400).send({ code: 'NO_TRADE_SLOTS', message: 'No trade slots remaining' })
+        }
+
+        // Check if player already traded with this NPC today
+        if (session.state.playerNpcTradedToday.includes(action.target)) {
+          return reply.status(400).send({ code: 'ALREADY_TRADED_TODAY', message: `You already traded with ${action.target} today.` })
+        }
+
+        // Check if there's already an active negotiation
+        const existingNeg = negotiations.get(id)
+        if (existingNeg) {
+          return reply.status(400).send({ code: 'NEGOTIATION_ACTIVE', message: 'You already have an active negotiation. Complete or close it first.' })
         }
 
         // Deduct trade slot
@@ -145,6 +162,11 @@ const routes: FastifyPluginAsync = async (fastify) => {
             session.state, npcMsg.proposal.from, npcMsg.proposal.to,
             npcMsg.proposal.offer, npcMsg.proposal.request,
           )
+          // Track that player traded with this NPC today
+          session.state = {
+            ...session.state,
+            playerNpcTradedToday: [...session.state.playerNpcTradedToday, action.target],
+          }
           negotiations.delete(id)
           broadcastSSE(id, { type: 'trade_result', success: true, from: 'player', to: action.target, summary: `Trade completed with ${action.target}!` })
         }
@@ -167,6 +189,10 @@ const routes: FastifyPluginAsync = async (fastify) => {
         if (!negotiation) {
           return reply.status(400).send({ code: 'NO_NEGOTIATION', message: 'No active negotiation' })
         }
+        // BUG 7: Validate conversationId matches
+        if (negotiation.conversationId !== action.conversationId) {
+          return reply.status(400).send({ code: 'WRONG_CONVERSATION', message: 'Conversation ID mismatch.' })
+        }
 
         const playerMsg: NegotiationMessage = {
           speaker: 'player',
@@ -184,6 +210,11 @@ const routes: FastifyPluginAsync = async (fastify) => {
               session.state, lastProposal.from, lastProposal.to,
               lastProposal.offer, lastProposal.request,
             )
+            // Track that player traded with this NPC today
+            session.state = {
+              ...session.state,
+              playerNpcTradedToday: [...session.state.playerNpcTradedToday, negotiation.target],
+            }
             broadcastSSE(id, { type: 'trade_result', success: true, from: 'player', to: negotiation.target, summary: `Trade completed with ${negotiation.target}!` })
           }
           negotiations.delete(id)
@@ -218,21 +249,23 @@ const routes: FastifyPluginAsync = async (fastify) => {
         negotiation.messages.push(npcMsg)
         broadcastSSE(id, { type: 'negotiation', message: npcMsg })
 
-        // If NPC accepted
-        if (npcReply.accept) {
+        // BUG 8: NPC accept and reject are mutually exclusive
+        if (npcReply.accept && !npcReply.reject) {
           const lastProposal = [...negotiation.messages].reverse().find(m => m.proposal)?.proposal
           if (lastProposal) {
             session.state = executePeerTrade(
               session.state, lastProposal.from, lastProposal.to,
               lastProposal.offer, lastProposal.request,
             )
+            // Track that player traded with this NPC today
+            session.state = {
+              ...session.state,
+              playerNpcTradedToday: [...session.state.playerNpcTradedToday, negotiation.target],
+            }
             broadcastSSE(id, { type: 'trade_result', success: true, from: 'player', to: negotiation.target, summary: `Trade completed with ${negotiation.target}!` })
           }
           negotiations.delete(id)
-        }
-
-        // If NPC rejected
-        if (npcReply.reject) {
+        } else if (npcReply.reject) {
           negotiations.delete(id)
           broadcastSSE(id, { type: 'trade_result', success: false, from: 'player', to: negotiation.target, summary: `${negotiation.target} rejected the deal.` })
         }
@@ -255,14 +288,18 @@ const routes: FastifyPluginAsync = async (fastify) => {
       broadcastSSE(id, { type: 'state_update', state: session.state })
 
       if (action.type === 'end_turn') {
+        // Clear any active negotiation before AI turns
+        negotiations.delete(id)
+
         const broadcast: SSEBroadcaster = (event) => broadcastSSE(id, event)
-        runAITurns(session.state, broadcast).then(async (newState) => {
+        try {
+          const newState = await runAITurns(session.state, broadcast)
           session.state = newState
           await persistGame(id, newState)
-        }).catch((err) => {
+        } catch (err) {
           console.error('AI turns error:', err)
           broadcastSSE(id, { type: 'error', message: 'AI turns failed' })
-        })
+        }
       }
 
       await persistGame(id, session.state)

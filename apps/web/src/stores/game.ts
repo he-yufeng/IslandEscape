@@ -17,6 +17,8 @@ export interface NegotiationState {
   target: CharacterId
   messages: NegotiationMessage[]
   isOpen: boolean
+  /** true = first message not yet sent to server (trade_peer not called) */
+  isNew: boolean
 }
 
 export const CHARACTER_META: Record<string, { name: string; personality: string; emoji: string }> = {
@@ -35,6 +37,7 @@ export const useGameStore = defineStore('game', () => {
   const isLoading = ref(false)
   const activeNegotiation = ref<NegotiationState | null>(null)
   const thinkingCharacter = ref<CharacterId | null>(null)
+  const errorMessage = ref<string | null>(null)
 
   // ---- Map / interaction state (for PixiJS ↔ Vue bridge) ----
   const currentInteraction = ref<InteractionType>(null)
@@ -79,6 +82,16 @@ export const useGameStore = defineStore('game', () => {
   const playerAlive = computed(() => playerState.value?.alive ?? true)
   const playerEscaped = computed(() => playerState.value?.escaped ?? false)
 
+  /** NPCs the player has already traded with today */
+  const playerNpcTradedToday = computed<CharacterId[]>(() => {
+    return state.value?.playerNpcTradedToday ?? []
+  })
+
+  /** Check if player can trade with a specific NPC */
+  function canTradeWithNpc(npcId: CharacterId): boolean {
+    return !playerNpcTradedToday.value.includes(npcId)
+  }
+
   // ---- Actions ----
   async function newGame() {
     disconnectSSE()
@@ -110,28 +123,36 @@ export const useGameStore = defineStore('game', () => {
       // Handle negotiation responses from server
       if (res.negotiation) {
         const neg = res.negotiation as { conversationId: string; messages: NegotiationMessage[] }
-        if (!activeNegotiation.value) {
-          // Starting new negotiation
+        if (!activeNegotiation.value || activeNegotiation.value.target !== (action as { target?: CharacterId }).target) {
+          // Starting new negotiation (or target changed)
           activeNegotiation.value = {
             conversationId: neg.conversationId,
             target: (action as { target?: CharacterId }).target ?? dialogueTarget.value ?? 'tom',
             messages: neg.messages,
             isOpen: true,
+            isNew: false,
           }
           showDialoguePanel.value = true
           dialogueTarget.value = activeNegotiation.value.target
         } else {
-          // Update existing
+          // Update existing negotiation with server's authoritative message list
           activeNegotiation.value.messages = neg.messages
+          activeNegotiation.value.isNew = false
         }
       }
 
       if (res.negotiationDone) {
-        // Negotiation ended
+        // Negotiation truly ended (trade completed or rejected)
+        // Clear negotiation state after a brief delay so user sees the result
         setTimeout(() => {
-          closeNegotiation()
+          activeNegotiation.value = null
+          showDialoguePanel.value = false
+          dialogueTarget.value = null
         }, 2000)
       }
+    } catch (err) {
+      errorMessage.value = err instanceof Error ? err.message : 'Action failed'
+      setTimeout(() => { errorMessage.value = null }, 3000)
     } finally {
       isLoading.value = false
     }
@@ -148,6 +169,10 @@ export const useGameStore = defineStore('game', () => {
       try {
         const event: GameSSEEvent = JSON.parse(ev.data)
         events.value.push(event)
+        // LOGIC 7: Cap events array to prevent memory leak
+        if (events.value.length > 200) {
+          events.value = events.value.slice(-200)
+        }
         handleSSEEvent(event)
       } catch {
         // ignore parse errors
@@ -185,9 +210,10 @@ export const useGameStore = defineStore('game', () => {
         thinkingCharacter.value = null
         break
       case 'negotiation':
-        if (activeNegotiation.value) {
-          activeNegotiation.value.messages.push(event.message)
-        }
+        // Negotiation messages are handled via HTTP response in submitAction.
+        // SSE events for player-initiated negotiations are intentionally ignored
+        // to prevent double-display. SSE negotiation events for AI-to-AI talks
+        // only show in EventLog (via events array), not in DialoguePanel.
         break
       case 'game_over':
         thinkingCharacter.value = null
@@ -199,11 +225,23 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function openNegotiation(target: CharacterId, conversationId: string) {
+    // Resume existing negotiation with this target if one is active
+    if (activeNegotiation.value && activeNegotiation.value.target === target) {
+      dialogueTarget.value = target
+      showDialoguePanel.value = true
+      showActionMenu.value = false
+      return
+    }
+    // If there's an active negotiation with a different NPC, don't create a new one
+    if (activeNegotiation.value && activeNegotiation.value.target !== target) {
+      return
+    }
     activeNegotiation.value = {
       conversationId,
       target,
       messages: [],
       isOpen: true,
+      isNew: true,
     }
     dialogueTarget.value = target
     showDialoguePanel.value = true
@@ -211,9 +249,9 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function closeNegotiation() {
-    activeNegotiation.value = null
     showDialoguePanel.value = false
     dialogueTarget.value = null
+    // Keep activeNegotiation alive so the conversation can be resumed later.
   }
 
   // ---- Interaction helpers ----
@@ -222,9 +260,8 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function openActionMenu() {
-    if (currentInteraction.value && isPlayerTurn.value) {
-      showActionMenu.value = true
-    }
+    if (!currentInteraction.value || !isPlayerTurn.value) return
+    showActionMenu.value = true
   }
 
   function closeActionMenu() {
@@ -237,6 +274,7 @@ export const useGameStore = defineStore('game', () => {
     state,
     events,
     isLoading,
+    errorMessage,
     activeNegotiation,
     thinkingCharacter,
     currentInteraction,
@@ -256,6 +294,8 @@ export const useGameStore = defineStore('game', () => {
     winner,
     playerAlive,
     playerEscaped,
+    playerNpcTradedToday,
+    canTradeWithNpc,
     // methods
     getFriendship,
     newGame,

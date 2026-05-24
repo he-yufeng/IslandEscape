@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useGameStore, CHARACTER_META } from '@/stores/game'
-import type { CharacterId } from '@game/shared'
+import type { CharacterId, NegotiationMessage } from '@game/shared'
 import { GAME_CONFIG } from '@game/shared'
 
 const props = defineProps<{
@@ -24,6 +24,26 @@ const templateAmount = ref(3)
 const templatePrice = ref(10)
 
 const targetMeta = computed(() => CHARACTER_META[props.target] ?? { name: props.target, emoji: '?', personality: '' })
+
+// Friendship display
+const friendship = computed(() => game.getFriendship(props.target))
+const friendshipHearts = computed(() => {
+  const f = friendship.value
+  // 0-4: empty, 5-14: 1 heart, 15-24: 2 hearts, 25-34: 3 hearts, 35+: 4 hearts
+  if (f >= 35) return { filled: 4, empty: 0, label: 'Best Friends' }
+  if (f >= 25) return { filled: 3, empty: 1, label: 'Good Friends' }
+  if (f >= 15) return { filled: 2, empty: 2, label: 'Friendly' }
+  if (f >= 5)  return { filled: 1, empty: 3, label: 'Acquaintance' }
+  return { filled: 0, empty: 4, label: 'Stranger' }
+})
+const friendshipColor = computed(() => {
+  const f = friendship.value
+  if (f >= 35) return '#ff6b9d'
+  if (f >= 25) return '#ff8fab'
+  if (f >= 15) return '#ffb3c6'
+  if (f >= 5)  return '#ffd6e0'
+  return '#8a8a9a'
+})
 
 const messages = computed(() => game.activeNegotiation?.messages ?? [])
 const messageCount = computed(() => messages.value.length)
@@ -74,15 +94,15 @@ async function sendFreeForm() {
 async function sendMessage(message: string) {
   if (!game.activeNegotiation) return
 
-  // First message → initiate trade via trade_peer action
-  if (game.activeNegotiation.messages.length === 0) {
+  // First message of a new negotiation → initiate trade via trade_peer action
+  if (game.activeNegotiation.isNew) {
     await game.submitAction({
       type: 'trade_peer',
       target: game.activeNegotiation.target,
       message,
     })
   } else {
-    // Subsequent messages → negotiate_reply
+    // Subsequent messages or resumed conversation → negotiate_reply
     await game.submitAction({
       type: 'negotiate_reply',
       conversationId: game.activeNegotiation.conversationId,
@@ -91,8 +111,64 @@ async function sendMessage(message: string) {
   }
 }
 
+function validateProposal(proposal: { from: CharacterId; to: CharacterId; offer: { fish: number; wheat: number; coins: number }; request: { fish: number; wheat: number; coins: number } }): string | null {
+  const fromChar = game.state?.characters[proposal.from]
+  const toChar = game.state?.characters[proposal.to]
+  if (!fromChar || !toChar) return 'Character not found.'
+
+  const fromResources = fromChar.resources
+  const toResources = toChar.resources
+  const o = proposal.offer
+  const r = proposal.request
+
+  // Check from has enough to give
+  if (fromResources.fish < o.fish) return `${proposal.from} doesn't have enough fish (has ${fromResources.fish}, needs ${o.fish}).`
+  if (fromResources.wheat < o.wheat) return `${proposal.from} doesn't have enough wheat (has ${fromResources.wheat}, needs ${o.wheat}).`
+  if (fromResources.coins < o.coins) return `${proposal.from} doesn't have enough coins (has ${fromResources.coins}, needs ${o.coins}).`
+
+  // Check to has enough to give
+  if (toResources.fish < r.fish) return `${proposal.to} doesn't have enough fish (has ${toResources.fish}, needs ${r.fish}).`
+  if (toResources.wheat < r.wheat) return `${proposal.to} doesn't have enough wheat (has ${toResources.wheat}, needs ${r.wheat}).`
+  if (toResources.coins < r.coins) return `${proposal.to} doesn't have enough coins (has ${toResources.coins}, needs ${r.coins}).`
+
+  // Check resulting resources are non-negative
+  const newFromFish = fromResources.fish - o.fish + r.fish
+  const newFromWheat = fromResources.wheat - o.wheat + r.wheat
+  const newFromCoins = fromResources.coins - o.coins + r.coins
+  const newToFish = toResources.fish + o.fish - r.fish
+  const newToWheat = toResources.wheat + o.wheat - r.wheat
+  const newToCoins = toResources.coins + o.coins - r.coins
+
+  if (newFromFish < 0) return `Trade would leave ${proposal.from} with negative fish.`
+  if (newFromWheat < 0) return `Trade would leave ${proposal.from} with negative wheat.`
+  if (newFromCoins < 0) return `Trade would leave ${proposal.from} with negative coins.`
+  if (newToFish < 0) return `Trade would leave ${proposal.to} with negative fish.`
+  if (newToWheat < 0) return `Trade would leave ${proposal.to} with negative wheat.`
+  if (newToCoins < 0) return `Trade would leave ${proposal.to} with negative coins.`
+
+  return null
+}
+
+const validationError = ref('')
+
 async function acceptDeal() {
   if (!game.activeNegotiation) return
+
+  // Find the last proposal to validate
+  const lastProposal = [...game.activeNegotiation.messages]
+    .reverse()
+    .find((m: NegotiationMessage) => m.proposal)?.proposal
+
+  if (lastProposal) {
+    const error = validateProposal(lastProposal)
+    if (error) {
+      validationError.value = error
+      setTimeout(() => { validationError.value = '' }, 4000)
+      return
+    }
+  }
+
+  validationError.value = ''
   await game.submitAction({
     type: 'negotiate_reply',
     conversationId: game.activeNegotiation.conversationId,
@@ -104,12 +180,15 @@ async function acceptDeal() {
 
 async function rejectDeal() {
   if (!game.activeNegotiation) return
+  const neg = game.activeNegotiation
   await game.submitAction({
     type: 'negotiate_reply',
-    conversationId: game.activeNegotiation.conversationId,
-    message: 'No deal.',
+    conversationId: neg.conversationId,
+    message: 'No deal. I am walking away.',
     accept: false,
   })
+  // LOGIC 4: Actually end the negotiation from player side
+  game.closeNegotiation()
   emit('close')
 }
 
@@ -126,6 +205,11 @@ function speakerMeta(speakerId: string) {
         <span class="dialogue-title-icon">Chat</span>
         <span>{{ targetMeta.name }}</span>
       </div>
+      <!-- Friendship hearts -->
+      <div class="friendship-display" :style="{ color: friendshipColor }" :title="`${targetMeta.name}: ${friendship} friendship - ${friendshipHearts.label}`">
+        <span v-for="i in friendshipHearts.filled" :key="'f'+i" class="heart filled">&#x2665;</span>
+        <span v-for="i in friendshipHearts.empty" :key="'e'+i" class="heart empty">&#x2661;</span>
+      </div>
       <div class="dialogue-header-right">
         <span class="message-count">
           {{ messageCount }}/{{ maxExchanges * 2 }}
@@ -139,7 +223,7 @@ function speakerMeta(speakerId: string) {
     <!-- Chat messages -->
     <div ref="chatContainer" class="chat-messages">
       <div v-if="messages.length === 0" class="chat-empty">
-        Start the conversation with a trade proposal below...
+        {{ game.activeNegotiation?.isNew ? 'Start the conversation with a trade proposal below...' : 'Continuing previous conversation...' }}
       </div>
       <div
         v-for="(msg, i) in messages"
@@ -205,6 +289,11 @@ function speakerMeta(speakerId: string) {
       </button>
     </div>
 
+    <!-- Validation Error -->
+    <div v-if="validationError" class="validation-error">
+      {{ validationError }}
+    </div>
+
     <!-- Accept / Reject -->
     <div class="deal-buttons">
       <button class="deal-accept" @click="acceptDeal">Accept Deal</button>
@@ -254,6 +343,20 @@ function speakerMeta(speakerId: string) {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.friendship-display {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 12px;
+  cursor: default;
+}
+.heart.filled {
+  color: inherit;
+}
+.heart.empty {
+  opacity: 0.35;
 }
 
 .message-count {
@@ -485,5 +588,16 @@ function speakerMeta(speakerId: string) {
 }
 .deal-reject:hover {
   background: #ef4444;
+}
+
+.validation-error {
+  padding: 6px 8px;
+  margin: 0 8px;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: 4px;
+  color: #f87171;
+  font-size: 10px;
+  font-family: monospace;
 }
 </style>

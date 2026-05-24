@@ -10,7 +10,6 @@ import { getNegotiationReply, getAITradeInitiation } from './negotiation-agent'
 import {
   applyAILabor,
   applyAITrade,
-  advanceAIIndex,
   executePeerTrade,
   settle,
   advanceDay,
@@ -28,7 +27,6 @@ export async function runAITurns(
     const charId = current.aiTurnOrder[i]
     const character = current.characters[charId]
     if (!character || !character.alive || character.escaped) {
-      current = advanceAIIndex(current)
       continue
     }
 
@@ -73,9 +71,11 @@ export async function runAITurns(
       broadcast({ type: 'log', message: `${charId} went fishing (error fallback).` })
     }
 
-    current = advanceAIIndex(current)
     broadcast({ type: 'state_update', state: current })
   }
+
+  // All AI turns done, move to settlement
+  current = { ...current, phase: 'settlement' as const }
 
   // Settlement
   current = settle(current)
@@ -110,17 +110,17 @@ export async function runAITurns(
 }
 
 async function runAINegotiation(
-  state: GameState,
+  current: GameState,
   initiator: CharacterId,
   target: CharacterId,
   broadcast: SSEBroadcaster,
 ): Promise<GameState> {
-  const targetChar = state.characters[target]
-  if (!targetChar || !targetChar.alive || targetChar.escaped) return state
+  const targetChar = current.characters[target]
+  if (!targetChar || !targetChar.alive || targetChar.escaped) return current
 
   const history: NegotiationMessage[] = []
 
-  const opening = await getAITradeInitiation(state, initiator, target)
+  const opening = await getAITradeInitiation(current, initiator, target)
   const openingMsg: NegotiationMessage = {
     speaker: initiator,
     text: opening.text,
@@ -136,7 +136,7 @@ async function runAINegotiation(
 
   for (let exchange = 1; exchange < GAME_CONFIG.MAX_NEGOTIATION_EXCHANGES; exchange++) {
     const partner = currentSpeaker === target ? initiator : target
-    const reply = await getNegotiationReply(state, currentSpeaker, partner, history)
+    const reply = await getNegotiationReply(current, currentSpeaker, partner, history)
 
     const replyMsg: NegotiationMessage = {
       speaker: currentSpeaker,
@@ -158,12 +158,12 @@ async function runAINegotiation(
   if (tradeAccepted) {
     const lastProposal = [...history].reverse().find(m => m.proposal)?.proposal
     if (lastProposal) {
-      const newState = executePeerTrade(state, lastProposal.from, lastProposal.to, lastProposal.offer, lastProposal.request)
+      const newState = executePeerTrade(current, lastProposal.from, lastProposal.to, lastProposal.offer, lastProposal.request)
       broadcast({ type: 'trade_result', success: true, from: lastProposal.from, to: lastProposal.to, summary: `Trade completed between ${lastProposal.from} and ${lastProposal.to}` })
       return newState
     }
   }
 
   broadcast({ type: 'trade_result', success: false, from: initiator, to: target, summary: `Negotiation between ${initiator} and ${target} failed.` })
-  return state
+  return current
 }
