@@ -166,6 +166,11 @@ export class GameWorld {
   private aiQueues: Map<string, Array<() => Promise<void>>> = new Map()
   private aiQueueRunning: Map<string, boolean> = new Map()
 
+  /** Pulsing highlight that follows whatever interactable the player is next to. */
+  private interactionHighlight: Graphics | null = null
+  private interactionHighlightTarget: { col: number; row: number; kind: string } | null = null
+  private interactionHighlightPhase = 0
+
   constructor() {
     this.worldContainer = new Container()
     this.worldContainer.label = 'game-world'
@@ -300,6 +305,7 @@ export class GameWorld {
           characterId: id as CharacterId,
           characterName: char.name,
         }
+        this.setInteractionHighlight(char.col, char.row, 'npc')
         this.emit({ type: 'interaction_changed', interaction })
         return interaction
       }
@@ -329,14 +335,75 @@ export class GameWorld {
             break
         }
         if (interaction) {
+          this.setInteractionHighlight(checkCol, checkRow, interaction.kind)
           this.emit({ type: 'interaction_changed', interaction })
           return interaction
         }
       }
     }
 
+    this.setInteractionHighlight(null)
     this.emit({ type: 'interaction_changed', interaction: null })
     return null
+  }
+
+  /**
+   * Show / move / hide a pulsing ring on the tile the player can interact with.
+   * The colour hints at what kind of interaction is available so it reads at a
+   * glance even before the bottom-bar prompt appears.
+   */
+  private setInteractionHighlight(
+    colOrNull: number | null,
+    row?: number,
+    kind?: string,
+  ): void {
+    if (colOrNull === null) {
+      if (this.interactionHighlight) {
+        this.effectsLayer.removeChild(this.interactionHighlight)
+        this.interactionHighlight.destroy()
+        this.interactionHighlight = null
+      }
+      this.interactionHighlightTarget = null
+      return
+    }
+
+    const col = colOrNull
+    if (!this.interactionHighlight) {
+      this.interactionHighlight = new Graphics()
+      this.effectsLayer.addChild(this.interactionHighlight)
+    }
+    this.interactionHighlightTarget = { col, row: row!, kind: kind ?? '' }
+    this.drawInteractionHighlight()
+  }
+
+  private drawInteractionHighlight(): void {
+    if (!this.interactionHighlight || !this.interactionHighlightTarget) return
+    const t = this.interactionHighlightTarget
+    const x = t.col * TILE_SIZE
+    const y = t.row * TILE_SIZE
+    const pulse = 0.55 + Math.sin(this.interactionHighlightPhase * 4) * 0.25
+
+    const colorByKind: Record<string, number> = {
+      fish: 0x6fd2ff,
+      farm: 0xffd76a,
+      merchant: 0xff9e3a,
+      dungeon: 0xff5a5a,
+      npc: 0xff7fb6,
+    }
+    const color = colorByKind[t.kind] ?? 0xc8e0ff
+
+    const g = this.interactionHighlight
+    g.clear()
+    // Tile-fitting outer pulse
+    g.roundRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, 5)
+      .stroke({ color, width: 2, alpha: pulse })
+    // Inner softer ring
+    g.roundRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8, 4)
+      .fill({ color, alpha: pulse * 0.12 })
+    // Tiny corner caret marker (top-left) so the eye catches it instantly
+    const sz = 5
+    g.moveTo(x + 5, y + 5).lineTo(x + 5 + sz, y + 5).stroke({ color, width: 2, alpha: pulse })
+    g.moveTo(x + 5, y + 5).lineTo(x + 5, y + 5 + sz).stroke({ color, width: 2, alpha: pulse })
   }
 
   /** Animate an AI character to a location.
@@ -510,6 +577,12 @@ export class GameWorld {
 
     // Idle NPC wandering — keeps the village feeling alive.
     this.tickWandering(delta)
+
+    // Pulsing interactable highlight
+    if (this.interactionHighlight && this.interactionHighlightTarget) {
+      this.interactionHighlightPhase += delta * 0.016
+      this.drawInteractionHighlight()
+    }
 
     // Poll held movement keys each frame for continuous movement
     if (this.inputEnabled) {

@@ -10,6 +10,8 @@ import EventLog from '@/components/EventLog.vue'
 import CardPicker from '@/components/CardPicker.vue'
 import ResourceToasts from '@/components/ResourceToasts.vue'
 import PhaseHint from '@/components/PhaseHint.vue'
+import TutorialModal from '@/components/TutorialModal.vue'
+import DaySummaryModal from '@/components/DaySummaryModal.vue'
 import type { InteractionType } from '@/game/GameWorld'
 
 const InteractionPreview3D = defineAsyncComponent(() => import('@/components/InteractionPreview3D.vue'))
@@ -242,6 +244,12 @@ const gameOverMessage = computed(() => {
 
     <!-- Floating resource change toasts (overlay) -->
     <ResourceToasts />
+
+    <!-- Day-end recap pops automatically when settlement event arrives -->
+    <DaySummaryModal />
+
+    <!-- First-time onboarding (gated by localStorage) -->
+    <TutorialModal />
   </div>
 </template>
 

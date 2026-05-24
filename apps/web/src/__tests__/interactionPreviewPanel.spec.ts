@@ -74,6 +74,7 @@ const baseState: GameState = {
   playerNpcTradedToday: ['sam'],
   dungeonState: null,
   playerDungeonUsedToday: false,
+  dailyEvent: 'none',
   updatedAt: '2026-05-24T00:00:00.000Z',
 }
 

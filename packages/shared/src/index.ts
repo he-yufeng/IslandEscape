@@ -169,6 +169,45 @@ export const DayPhaseSchema = z.enum([
 ])
 export type DayPhase = z.infer<typeof DayPhaseSchema>
 
+// ----- Daily random events -----
+
+export const DailyEventSchema = z.enum([
+  'none',
+  'storm',         // fishing yields only 1 fish today
+  'festival',      // friendship gains doubled on peer trades
+  'lucky_catch',   // every alive character gains +2 fish at dawn
+  'drought',       // night upkeep costs 2 wheat instead of 1
+])
+export type DailyEvent = z.infer<typeof DailyEventSchema>
+
+export const DAILY_EVENT_INFO: Record<DailyEvent, { label: string; icon: string; desc: string }> = {
+  none: {
+    label: 'Calm day',
+    icon: '☀️',
+    desc: 'A normal day on the island. Standard rules apply.',
+  },
+  storm: {
+    label: 'Storm',
+    icon: '⛈️',
+    desc: 'Heavy rain — fishing yields only 1 fish today (instead of 3).',
+  },
+  festival: {
+    label: 'Festival',
+    icon: '🎉',
+    desc: 'A festive mood — friendship gained from peer trades is doubled today.',
+  },
+  lucky_catch: {
+    label: 'Lucky Catch',
+    icon: '🎣',
+    desc: 'A school of fish washes ashore — every alive character gained +2 fish at dawn.',
+  },
+  drought: {
+    label: 'Drought',
+    icon: '🏜️',
+    desc: 'Wells run low — tonight\'s upkeep costs 2 wheat instead of 1.',
+  },
+}
+
 // ----- Full game state -----
 
 export const GameStateSchema = z.object({
@@ -190,6 +229,8 @@ export const GameStateSchema = z.object({
   playerNpcTradedToday: z.array(CharacterIdSchema),
   /** True if the player has already entered the dungeon today (one run per day). */
   playerDungeonUsedToday: z.boolean().default(false),
+  /** A random per-day modifier (storm, festival, drought, …) for variety. */
+  dailyEvent: DailyEventSchema.default('none'),
   updatedAt: z.string().datetime(),
 })
 export type GameState = z.infer<typeof GameStateSchema>

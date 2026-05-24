@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
-import { GAME_CONFIG } from '@game/shared'
+import { GAME_CONFIG, DAILY_EVENT_INFO, type DailyEvent } from '@game/shared'
 
 const game = useGameStore()
 
@@ -81,6 +81,9 @@ const phaseColor = computed(() => {
 const tradeSlots = computed(() => game.playerTradeSlots)
 const merchantFish = computed(() => game.merchantPrices.fishPrice)
 const merchantWheat = computed(() => game.merchantPrices.wheatPrice)
+
+const dailyEvent = computed<DailyEvent>(() => game.state?.dailyEvent ?? 'none')
+const dailyEventInfo = computed(() => DAILY_EVENT_INFO[dailyEvent.value])
 </script>
 
 <template>
@@ -93,6 +96,18 @@ const merchantWheat = computed(() => game.merchantPrices.wheatPrice)
 
     <div class="hud-section">
       <span :class="['hud-badge', phaseColor]">{{ phaseLabel }}</span>
+    </div>
+
+    <!-- Daily event badge — only shows on non-calm days -->
+    <div
+      v-if="dailyEvent !== 'none'"
+      class="hud-section"
+      :title="dailyEventInfo.desc"
+    >
+      <span class="hud-event-badge">
+        <span class="hud-event-icon">{{ dailyEventInfo.icon }}</span>
+        <span class="hud-event-label">{{ dailyEventInfo.label }}</span>
+      </span>
     </div>
 
     <!-- Divider -->
@@ -270,5 +285,32 @@ const merchantWheat = computed(() => game.merchantPrices.wheatPrice)
   0%   { transform: scale(1);    text-shadow: none; }
   20%  { transform: scale(1.4);  text-shadow: 0 0 8px rgba(255, 120, 80, 0.9); color: #ff9a66; }
   100% { transform: scale(1);    text-shadow: none; }
+}
+
+.hud-event-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(200, 160, 96, 0.25), rgba(200, 160, 96, 0.08));
+  border: 1px solid rgba(200, 160, 96, 0.5);
+  cursor: help;
+  animation: event-glow 2.4s ease-in-out infinite;
+}
+.hud-event-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.hud-event-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #f0d5a3;
+  text-transform: uppercase;
+}
+@keyframes event-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(200, 160, 96, 0); }
+  50% { box-shadow: 0 0 8px rgba(200, 160, 96, 0.4); }
 }
 </style>

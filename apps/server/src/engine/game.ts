@@ -8,6 +8,7 @@ import {
   type MerchantPrices,
   type DungeonResult,
   type Resources,
+  type DailyEvent,
   ALL_CHARACTERS,
   AI_CHARACTERS,
   GAME_CONFIG,
@@ -58,6 +59,18 @@ function generateMerchantPrices(): MerchantPrices {
   }
 }
 
+/** Roll a fresh daily event. ~40 % of days have a non-trivial twist. */
+function rollDailyEvent(day: number): DailyEvent {
+  // Day 1 is always calm so first-time players can learn the basics.
+  if (day <= 1) return 'none'
+  const r = Math.random()
+  if (r < 0.60) return 'none'
+  if (r < 0.70) return 'storm'
+  if (r < 0.80) return 'festival'
+  if (r < 0.90) return 'lucky_catch'
+  return 'drought'
+}
+
 function makeCharacter(id: CharacterId): CharacterState {
   return {
     id,
@@ -104,6 +117,7 @@ export function createNewGame(gameId: string): GameState {
     dungeonState: null,
     playerNpcTradedToday: [],
     playerDungeonUsedToday: false,
+    dailyEvent: 'none',
     updatedAt: nowIso(),
   }
 }
@@ -112,12 +126,24 @@ export function createNewGame(gameId: string): GameState {
 
 export function startDay(state: GameState): GameState {
   const merchantPrices = generateMerchantPrices()
+  const dailyEvent = rollDailyEvent(state.day)
 
-  const characters = { ...state.characters }
+  let characters = { ...state.characters }
   for (const id of ALL_CHARACTERS) {
     const c = characters[id]
     if (c && c.alive && !c.escaped) {
       characters[id] = { ...c, tradeSlots: GAME_CONFIG.TRADE_SLOTS_PER_DAY }
+    }
+  }
+
+  // Lucky Catch event — every alive character receives +2 fish at dawn.
+  if (dailyEvent === 'lucky_catch') {
+    for (const id of ALL_CHARACTERS) {
+      const c = characters[id]
+      if (c && c.alive && !c.escaped) {
+        const res = safeResources(c.resources)
+        characters[id] = { ...c, resources: { ...res, fish: res.fish + 2 } }
+      }
     }
   }
 
@@ -145,6 +171,12 @@ export function startDay(state: GameState): GameState {
   })
   const aiTurnOrder = shuffleArray(aliveAI)
 
+  const eventLogLines: string[] = []
+  if (dailyEvent === 'storm') eventLogLines.push('⛈️ Storm — fishing yields only 1 fish today.')
+  else if (dailyEvent === 'festival') eventLogLines.push('🎉 Festival — friendship gains doubled today.')
+  else if (dailyEvent === 'lucky_catch') eventLogLines.push('🎣 Lucky Catch — everyone alive received +2 fish at dawn.')
+  else if (dailyEvent === 'drought') eventLogLines.push('🏜️ Drought — tonight\'s upkeep costs 2 wheat.')
+
   return {
     ...state,
     characters,
@@ -155,7 +187,13 @@ export function startDay(state: GameState): GameState {
     currentAiIndex: 0,
     playerNpcTradedToday: [],
     playerDungeonUsedToday: false,
-    log: [`--- Day ${state.day} ---`, `Merchant ship: fish ${merchantPrices.fishPrice}c, wheat ${merchantPrices.wheatPrice}c`, ...harvestLog],
+    dailyEvent,
+    log: [
+      `--- Day ${state.day} ---`,
+      `Merchant ship: fish ${merchantPrices.fishPrice}c, wheat ${merchantPrices.wheatPrice}c`,
+      ...eventLogLines,
+      ...harvestLog,
+    ],
     updatedAt: nowIso(),
   }
 }
@@ -282,9 +320,12 @@ export function settle(state: GameState): GameState {
       continue
     }
 
-    // Consume daily resources
+    // Consume daily resources — drought event doubles the wheat cost.
+    const wheatCost = state.dailyEvent === 'drought'
+      ? GAME_CONFIG.DAILY_WHEAT_COST * 2
+      : GAME_CONFIG.DAILY_WHEAT_COST
     const newFish = safeRes.fish - GAME_CONFIG.DAILY_FISH_COST
-    const newWheat = safeRes.wheat - GAME_CONFIG.DAILY_WHEAT_COST
+    const newWheat = safeRes.wheat - wheatCost
 
     if (newFish <= 0 || newWheat <= 0) {
       characters[id] = {
@@ -409,10 +450,13 @@ export function applyFish(state: GameState, charId: CharacterId): GameState {
   if (!c) return state
 
   const res = safeResources(c.resources)
+  // Storm: fishing yields drop to 1 today instead of the usual 3.
+  const yieldFish = state.dailyEvent === 'storm' ? 1 : GAME_CONFIG.FISH_PER_LABOR
   const newState = updateCharacter(state, charId, {
-    resources: { ...res, fish: res.fish + GAME_CONFIG.FISH_PER_LABOR },
+    resources: { ...res, fish: res.fish + yieldFish },
   })
-  return addLog(newState, `${charId} went fishing. +${GAME_CONFIG.FISH_PER_LABOR} fish.`)
+  const note = state.dailyEvent === 'storm' ? ' (storm — only +1)' : ''
+  return addLog(newState, `${charId} went fishing. +${yieldFish} fish${note}.`)
 }
 
 export function applyFarm(state: GameState, charId: CharacterId): GameState {
@@ -535,11 +579,15 @@ export function executePeerTrade(
 
   const fKey = friendshipKey(from, to)
   const newFriendship = { ...state.friendship }
-  newFriendship[fKey] = (newFriendship[fKey] || 0) + GAME_CONFIG.FRIENDSHIP_TRADE_BONUS
+  // Festival event: peer trades give double friendship bonus today.
+  const friendshipMul = state.dailyEvent === 'festival' ? 2 : 1
+  const bonus = GAME_CONFIG.FRIENDSHIP_TRADE_BONUS * friendshipMul
+  newFriendship[fKey] = (newFriendship[fKey] || 0) + bonus
 
   const characters = { ...state.characters, [from]: newFrom, [to]: newTo }
   const newState = { ...state, characters, friendship: newFriendship, updatedAt: nowIso() }
-  return addLog(newState, `${from} traded with ${to}. Friendship +${GAME_CONFIG.FRIENDSHIP_TRADE_BONUS}.`)
+  const festivalNote = state.dailyEvent === 'festival' ? ' (festival 2×)' : ''
+  return addLog(newState, `${from} traded with ${to}. Friendship +${bonus}${festivalNote}.`)
 }
 
 function updateCharacter(state: GameState, charId: CharacterId, patch: Partial<CharacterState>): GameState {

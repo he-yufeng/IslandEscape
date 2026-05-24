@@ -56,6 +56,7 @@ function makeGameState(): GameState {
     playerNpcTradedToday: [],
     dungeonState: null,
     playerDungeonUsedToday: false,
+    dailyEvent: 'none',
     updatedAt: now,
   }
 }
