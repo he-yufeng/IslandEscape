@@ -27,6 +27,7 @@ export interface CharacterConfig {
 
 export class Character {
   public container: Container
+  public overlayContainer: Container
   public id: string
   public name: string
 
@@ -77,6 +78,11 @@ export class Character {
     this.container.x = this.pixelX
     this.container.y = this.pixelY
 
+    this.overlayContainer = new Container()
+    this.overlayContainer.label = `character-overlay-${config.id}`
+    this.overlayContainer.x = Math.round(this.pixelX)
+    this.overlayContainer.y = Math.round(this.pixelY)
+
     // Draw sprite
     this.sprite = new Graphics()
     this.drawCharacter()
@@ -84,18 +90,20 @@ export class Character {
 
     // Name label
     const style = new TextStyle({
-      fontSize: 8,
+      fontSize: 9,
       fill: 0xffffff,
       fontFamily: 'monospace',
       fontWeight: 'bold',
-      stroke: { color: 0x000000, width: 2.5 },
+      stroke: { color: 0x04111d, width: 3 },
       align: 'center',
+      padding: 2,
     })
     this.nameLabel = new Text({ text: config.name, style })
+    this.nameLabel.resolution = 3
     this.nameLabel.anchor.set(0.5, 1)
     this.nameLabel.x = TILE_SIZE / 2
-    this.nameLabel.y = -2
-    this.container.addChild(this.nameLabel)
+    this.nameLabel.y = -3
+    this.overlayContainer.addChild(this.nameLabel)
   }
 
   private drawCharacter() {
@@ -219,6 +227,8 @@ export class Character {
     this.targetPixelY = this.pixelY
     this.container.x = this.pixelX
     this.container.y = this.pixelY
+    this.overlayContainer.x = Math.round(this.pixelX)
+    this.overlayContainer.y = Math.round(this.pixelY)
     this.isMoving = false
   }
 
@@ -232,9 +242,9 @@ export class Character {
       bubble.circle(16, -14, 2).fill(0x888888)
       bubble.circle(24, -14, 2).fill(0x888888)
       this.thinkingBubble = bubble
-      this.container.addChild(bubble)
+      this.overlayContainer.addChild(bubble)
     } else if (!show && this.thinkingBubble) {
-      this.container.removeChild(this.thinkingBubble)
+      this.overlayContainer.removeChild(this.thinkingBubble)
       this.thinkingBubble.destroy()
       this.thinkingBubble = null
     }
@@ -280,6 +290,8 @@ export class Character {
 
     this.container.x = this.pixelX
     this.container.y = this.pixelY
+    this.overlayContainer.x = Math.round(this.pixelX)
+    this.overlayContainer.y = Math.round(this.pixelY)
 
     // Thinking bubble animation
     if (this.thinkingBubble) {
@@ -301,5 +313,6 @@ export class Character {
 
   public destroy() {
     this.container.destroy({ children: true })
+    this.overlayContainer.destroy({ children: true })
   }
 }
