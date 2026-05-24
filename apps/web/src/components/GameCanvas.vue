@@ -202,7 +202,7 @@ watch(
   (active) => {
     if (!renderer) return
     if (active) {
-      renderer.enterDungeonMode()
+      renderer.enterDungeonMode(game.day)
       renderer.onDungeonEvent((event) => {
         game.onDungeonEvent(event as unknown as Record<string, unknown> & { type: string })
       })

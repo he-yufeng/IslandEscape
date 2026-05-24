@@ -7,8 +7,8 @@ import { z } from 'zod'
 // ----- Game configuration constants -----
 
 export const GAME_CONFIG = {
-  STARTING_FISH: 5,
-  STARTING_WHEAT: 5,
+  STARTING_FISH: 6,
+  STARTING_WHEAT: 6,
   STARTING_COINS: 0,
   FISH_PER_LABOR: 3,
   WHEAT_PER_HARVEST: 8,
@@ -23,17 +23,18 @@ export const GAME_CONFIG = {
   MERCHANT_WHEAT_PRICE_RANGE: [1, 4] as const,
   // Dungeon
   PLAYER_MAX_HP: 15,
-  BOSS_MAX_HP: 90,
+  BOSS_MAX_HP: 150,
   BASE_BULLET_DAMAGE: 2,
   BASE_BULLET_COOLDOWN: 400,
   BASE_MOVE_SPEED: 160,
-  BOSS_BULLET_DAMAGE: 4,
+  BOSS_BULLET_DAMAGE: 5,
   BOSS_CHARGE_DAMAGE: 6,
   BOSS_CHARGE_SPEED: 300,
-  DUNGEON_COIN_REWARD: 20,
+  /** Base coin reward for clearing the dungeon. Day-scales additively in resolveDungeon. */
+  DUNGEON_COIN_REWARD: 15,
   DUNGEON_RESOURCE_PENALTY: 5,
   XP_PER_ORB: 10,
-  XP_THRESHOLDS: [30, 60, 100, 150, 210, 280, 360] as readonly number[],
+  XP_THRESHOLDS: [60, 130, 220, 330, 460, 610, 780] as readonly number[],
 } as const
 
 // ----- Character & resource types -----
@@ -173,7 +174,7 @@ export type DayPhase = z.infer<typeof DayPhaseSchema>
 
 export const DailyEventSchema = z.enum([
   'none',
-  'storm',         // fishing yields only 1 fish today
+  'storm',         // fishing yields only 2 fish today (halved)
   'festival',      // friendship gains doubled on peer trades
   'lucky_catch',   // every alive character gains +2 fish at dawn
   'drought',       // night upkeep costs 2 wheat instead of 1
@@ -189,7 +190,7 @@ export const DAILY_EVENT_INFO: Record<DailyEvent, { label: string; icon: string;
   storm: {
     label: 'Storm',
     icon: '⛈️',
-    desc: 'Heavy rain — fishing yields only 1 fish today (instead of 3).',
+    desc: 'Heavy rain — fishing yields only 2 fish today (instead of 3).',
   },
   festival: {
     label: 'Festival',
