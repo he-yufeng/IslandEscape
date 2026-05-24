@@ -18,6 +18,10 @@ async function createChatCompletion(
   temperature: number,
   maxTokens: number,
 ): Promise<ChatCompletionResponse> {
+  console.log('\n[llm] === LLM API REQUEST ===')
+  console.log(`[llm] Model: ${env.OPENAI_MODEL}`)
+  console.log(`[llm] Messages:\n${JSON.stringify(messages, null, 2)}`)
+
   const baseURL = (env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '')
   const response = await fetch(`${baseURL}/chat/completions`, {
     method: 'POST',
@@ -36,10 +40,15 @@ async function createChatCompletion(
   if (!response.ok) {
     const body = await response.text().catch(() => '')
     const detail = body ? `: ${body.slice(0, 300)}` : ''
+    console.error(`\n[llm] === LLM API ERROR ===\nStatus: ${response.status} ${response.statusText}\nDetails: ${detail}\n`)
     throw new Error(`${response.status} ${response.statusText}${detail}`)
   }
 
-  return response.json() as Promise<ChatCompletionResponse>
+  const jsonResponse = await response.json() as ChatCompletionResponse
+  console.log('\n[llm] === LLM API RESPONSE ===')
+  console.log(`[llm] Response:\n${JSON.stringify(jsonResponse, null, 2)}\n`)
+
+  return jsonResponse
 }
 
 export async function chatJSON<T>(
