@@ -9,6 +9,8 @@ export interface BulletConfig {
   size: number
   piercing: number
   owner: 'player' | 'boss'
+  bounces?: number
+  isCrit?: boolean
 }
 
 const POOL_SIZE = 100
@@ -23,6 +25,8 @@ export class Bullet {
   public size = 6
   public piercing = 0
   public owner: 'player' | 'boss' = 'player'
+  public bounces = 0
+  public isCrit = false
 
   private gfx: Graphics
   private boundsW: number
@@ -45,6 +49,8 @@ export class Bullet {
     this.size = config.size
     this.piercing = config.piercing
     this.owner = config.owner
+    this.bounces = config.bounces ?? 0
+    this.isCrit = config.isCrit ?? false
     this.active = true
     this.gfx.visible = true
   }
@@ -59,6 +65,14 @@ export class Bullet {
     const ds = dt * 0.016
     this.x += this.vx * ds
     this.y += this.vy * ds
+
+    // Wall bounce (player bullets only)
+    if (this.owner === 'player' && this.bounces > 0) {
+      if (this.x < this.size) { this.x = this.size; this.vx = Math.abs(this.vx); this.bounces-- }
+      else if (this.x > this.boundsW - this.size) { this.x = this.boundsW - this.size; this.vx = -Math.abs(this.vx); this.bounces-- }
+      if (this.y < this.size) { this.y = this.size; this.vy = Math.abs(this.vy); this.bounces-- }
+      else if (this.y > this.boundsH - this.size) { this.y = this.boundsH - this.size; this.vy = -Math.abs(this.vy); this.bounces-- }
+    }
 
     // Offscreen check
     if (
@@ -78,8 +92,13 @@ export class Bullet {
     g.x = this.x
     g.y = this.y
     if (this.owner === 'player') {
-      g.circle(0, 0, this.size).fill(0xffdd44)
-      g.circle(0, 0, this.size * 0.5).fill(0xffffff)
+      const core = this.isCrit ? 0xffaa22 : 0xffdd44
+      const inner = this.isCrit ? 0xffffaa : 0xffffff
+      g.circle(0, 0, this.size).fill(core)
+      g.circle(0, 0, this.size * 0.5).fill(inner)
+      if (this.isCrit) {
+        g.circle(0, 0, this.size * 1.4).stroke({ color: 0xffaa22, width: 1, alpha: 0.6 })
+      }
     } else {
       g.circle(0, 0, this.size).fill(0xff3333)
       g.circle(0, 0, this.size * 0.4).fill(0xff8888)

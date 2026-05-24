@@ -4,6 +4,13 @@ import { PlayerCombat } from './PlayerCombat'
 import { Boss } from './Boss'
 import { BulletPool } from './Bullet'
 import { XPOrbPool } from './XPOrb'
+import {
+  ScreenShaker,
+  HitSparkPool,
+  DamageNumberPool,
+  VignetteOverlay,
+  GroundStrikePool,
+} from './Effects'
 
 interface FlashEffectData {
   gfx: Graphics
@@ -54,6 +61,17 @@ export class DungeonArena extends Container {
   private effectsLayer: Container
   private flashEffects: FlashEffectData[] = []
 
+  // Feedback pools
+  private shaker = new ScreenShaker()
+  private hitSparks!: HitSparkPool
+  private damageNumbers!: DamageNumberPool
+  private vignette!: VignetteOverlay
+  private strikes!: GroundStrikePool
+
+  // Player progression bookkeeping
+  private lifestealHitCount = 0
+  private bossDeathPending = false
+
   constructor() {
     super()
     this.label = 'dungeon-arena'
@@ -76,11 +94,14 @@ export class DungeonArena extends Container {
     this.drawArena()
 
     this.player = new PlayerCombat(this)
-    this.player.onUltimate = () => this.playerUltimate()
+    this.player.onUltimate = () => {
+      this.playerUltimate()
+      this.shaker.trigger(8, 0.3)
+    }
     this.player.onFlash = (sx, sy, ex, ey) => this.spawnFlashEffect(sx, sy, ex, ey)
     this.boss = new Boss(this)
 
-    this.boss.onShoot = (angle, count) => this.bossShoot(angle, count)
+    this.boss.onShoot = (angle, count, speedMul) => this.bossShoot(angle, count, speedMul)
     this.boss.onChargeEnd = () => {} // handled by collision detection
     this.boss.onXPOrbSpawn = (x, y, count) => {
       for (let i = 0; i < count; i++) {
@@ -88,14 +109,38 @@ export class DungeonArena extends Container {
         orb?.spawn(x, y, GAME_CONFIG.XP_PER_ORB)
       }
     }
+    this.boss.onSummon = (x, y) => {
+      // Spawn 3 strikes around the captured player position
+      this.strikes.spawn(x, y, { radius: 30, damage: 2, telegraph: 0.9 })
+      this.strikes.spawn(x + 50, y - 30, { radius: 26, damage: 2, telegraph: 1.0 })
+      this.strikes.spawn(x - 50, y + 20, { radius: 26, damage: 2, telegraph: 1.0 })
+    }
+    this.boss.onDeathComplete = () => {
+      this.bossDeathPending = false
+      this.fire({
+        type: 'boss_defeated',
+        damageDealt: this.totalDamageDealt,
+        damageTaken: this.totalDamageTaken,
+        cardsCollected: this.cardSystem.currentLevel,
+      })
+    }
 
     this.bullets = new BulletPool(this, ARENA_W, ARENA_H)
     this.orbs = new XPOrbPool(this)
     this.cardSystem = createCardSystem()
+
+    // Feedback layers (built after main entities so they render on top)
+    this.hitSparks = new HitSparkPool(this.effectsLayer)
+    this.strikes = new GroundStrikePool(this.effectsLayer)
+    this.damageNumbers = new DamageNumberPool(this.effectsLayer)
+    this.vignette = new VignetteOverlay(this.effectsLayer, ARENA_W, ARENA_H)
+
     this.active = true
     this.paused = false
     this.totalDamageDealt = 0
     this.totalDamageTaken = 0
+    this.lifestealHitCount = 0
+    this.bossDeathPending = false
   }
 
   private drawArena() {
@@ -194,12 +239,12 @@ export class DungeonArena extends Container {
     }
   }
 
-  private bossShoot(angle: number, count: number) {
+  private bossShoot(angle: number, count: number, speedMul = 1) {
     const spread = 0.3
     const startAngle = angle - (spread * (count - 1)) / 2
     for (let i = 0; i < count; i++) {
       const a = startAngle + spread * i
-      const speed = 160 + Math.random() * 40
+      const speed = (160 + Math.random() * 40) * speedMul
       const bullet = this.bullets.getInactive()
       if (bullet) {
         bullet.spawn({
@@ -232,7 +277,7 @@ export class DungeonArena extends Container {
 
   /** Apply selected card and resume */
   applyCardPick(cardId: string) {
-    const newLevel = applyCard(this.cardSystem, cardId)
+    applyCard(this.cardSystem, cardId)
 
     // Heal card is immediate
     if (cardId === 'heal') {
@@ -250,25 +295,35 @@ export class DungeonArena extends Container {
   }
 
   update(dt: number, input: InputManager) {
-    if (!this.active || this.paused) { input.clearFrameState(); return }
+    if (!this.active || this.paused) {
+      // Even when paused, drift the shake offset back toward zero
+      const o = this.shaker.update(dt * 0.016)
+      this.position.set(o.x, o.y)
+      input.clearFrameState()
+      return
+    }
 
     const ds = dt * 0.016
     const mousePos = input.getMouseCanvasPosition()
     const mouseX = Math.max(0, Math.min(ARENA_W, mousePos.x))
     const mouseY = Math.max(0, Math.min(ARENA_H, mousePos.y))
 
-    // Update player
+    // Update player — keep rendering during boss death, but shooting/damage are gated below
     this.player.update(dt, input, mouseX, mouseY)
 
-    // Player shooting
+    // Player shooting (disabled during boss death animation)
     const now = Date.now()
-    if (input.isMouseDown() && this.player.canShoot(now)) {
+    if (
+      !this.boss.isDying() && !this.boss.isDead() &&
+      input.isMouseDown() && this.player.canShoot(now)
+    ) {
       this.player.markShot(now)
       const angle = Math.atan2(mouseY - this.player.y, mouseX - this.player.x)
       const effects = this.player.effects
 
       for (let i = 0; i < effects.bulletCount; i++) {
         const spreadAngle = angle + (i - (effects.bulletCount - 1) / 2) * 0.15
+        const isCrit = Math.random() < (effects.critChance ?? 0)
         const bullet = this.bullets.getInactive()
         if (bullet) {
           bullet.spawn({
@@ -276,16 +331,18 @@ export class DungeonArena extends Container {
             y: this.player.y,
             vx: Math.cos(spreadAngle) * effects.bulletSpeed,
             vy: Math.sin(spreadAngle) * effects.bulletSpeed,
-            damage: effects.bulletDamage,
+            damage: effects.bulletDamage * (isCrit ? 2 : 1),
             size: effects.bulletSize,
             piercing: effects.piercing,
             owner: 'player',
+            bounces: effects.bounces,
+            isCrit,
           })
         }
       }
     }
 
-    // Update boss
+    // Update boss (it manages its own dying/dead state)
     this.boss.update(dt, this.player.x, this.player.y)
 
     // Update flash effects
@@ -297,22 +354,51 @@ export class DungeonArena extends Container {
     // Update XP orbs
     this.orbs.updateAll(dt, this.player.x, this.player.y)
 
-    // Check collisions
-    this.checkCollisions()
+    // Update feedback pools
+    this.hitSparks.update(ds)
+    this.damageNumbers.update(ds)
+    this.vignette.update(ds)
+
+    // Update ground strikes & apply AOE damage to player
+    const fired = this.strikes.update(ds)
+    for (const f of fired) {
+      const dx = this.player.x - f.x
+      const dy = this.player.y - f.y
+      if (Math.sqrt(dx * dx + dy * dy) < f.radius + this.player.getRadius()) {
+        const hit = this.player.takeDamage(f.damage)
+        if (hit) {
+          this.totalDamageTaken += f.damage
+          this.onPlayerHurt(f.damage)
+        }
+      }
+    }
+
+    // Check collisions (skip if boss is dying — bullets keep flying but no damage)
+    if (!this.boss.isDying() && !this.boss.isDead()) {
+      this.checkCollisions()
+    }
 
     // Check XP collected from orbs
     for (const orb of this.orbs.getActive()) {
       const dx = this.player.x - orb.x
       const dy = this.player.y - orb.y
       if (Math.sqrt(dx * dx + dy * dy) < 12) {
-        const levelUpTriggered = addXP(this.cardSystem, orb.value)
+        const gained = orb.value
+        const levelUpTriggered = addXP(this.cardSystem, gained)
+        this.damageNumbers.spawn(this.player.x, this.player.y - 14, `+${gained}`, 0x44ff66, { fontSize: 11 })
         orb.despawn()
         if (levelUpTriggered) {
           this.triggerCardPick()
+          // Reset shake before pause
+          this.position.set(0, 0)
           return
         }
       }
     }
+
+    // Apply screen shake
+    const offset = this.shaker.update(ds)
+    this.position.set(offset.x, offset.y)
 
     // Emit stats update
     const xpNeeded = getXpForNextLevel(this.cardSystem.currentLevel)
@@ -326,16 +412,15 @@ export class DungeonArena extends Container {
       xpNext: xpNeeded,
     })
 
-    // Check win/lose
-    if (this.boss.hp <= 0) {
-      this.active = false
-      this.fire({
-        type: 'boss_defeated',
-        damageDealt: this.totalDamageDealt,
-        damageTaken: this.totalDamageTaken,
-        cardsCollected: this.cardSystem.currentLevel,
-      })
+    // Win — boss death animation manages firing the event via onDeathComplete
+    if (this.boss.hp <= 0 && !this.bossDeathPending && this.boss.isDying()) {
+      this.bossDeathPending = true
+      this.shaker.trigger(12, 0.5)
     }
+    if (this.boss.isDead()) {
+      this.active = false
+    }
+
     if (this.player.hp <= 0) {
       this.active = false
       this.fire({
@@ -346,6 +431,11 @@ export class DungeonArena extends Container {
     }
 
     input.clearFrameState()
+  }
+
+  private onPlayerHurt(_amount: number) {
+    this.shaker.trigger(6, 0.25)
+    this.vignette.trigger(0.4, 0.45)
   }
 
   private checkCollisions() {
@@ -360,6 +450,28 @@ export class DungeonArena extends Container {
       if (Math.sqrt(dx * dx + dy * dy) < br + b.size) {
         this.boss.takeDamage(b.damage)
         this.totalDamageDealt += b.damage
+
+        // Hit feedback
+        this.hitSparks.burst(b.x, b.y, b.vx, b.vy, b.isCrit ? 0xffaa22 : 0xffdd66, b.isCrit ? 10 : 6)
+        this.damageNumbers.spawn(
+          this.boss.x + (Math.random() - 0.5) * 20,
+          this.boss.y - this.boss.radius,
+          b.isCrit ? `${b.damage}!` : String(b.damage),
+          b.isCrit ? 0xffd54a : 0xffffff,
+          { fontSize: b.isCrit ? 18 : 14 },
+        )
+
+        // Lifesteal
+        const required = this.player.effects.lifestealHits ?? 0
+        if (required > 0) {
+          this.lifestealHitCount++
+          if (this.lifestealHitCount >= required) {
+            this.lifestealHitCount = 0
+            this.player.heal(1)
+            this.damageNumbers.spawn(this.player.x, this.player.y - 12, '+1', 0xff7777, { fontSize: 12 })
+          }
+        }
+
         if (b.piercing > 0) {
           b.piercing--
         } else {
@@ -377,6 +489,8 @@ export class DungeonArena extends Container {
         const hit = this.player.takeDamage(b.damage)
         if (hit) {
           this.totalDamageTaken += b.damage
+          this.damageNumbers.spawn(this.player.x, this.player.y - 14, String(b.damage), 0xff6666, { fontSize: 13 })
+          this.onPlayerHurt(b.damage)
         }
         b.despawn()
       }
@@ -387,9 +501,13 @@ export class DungeonArena extends Container {
       const dx = this.player.x - this.boss.x
       const dy = this.player.y - this.boss.y
       if (Math.sqrt(dx * dx + dy * dy) < pr + br) {
-        const hit = this.player.takeDamage(this.boss.getChargeDamage())
+        const dmg = this.boss.getChargeDamage()
+        const hit = this.player.takeDamage(dmg)
         if (hit) {
-          this.totalDamageTaken += this.boss.getChargeDamage()
+          this.totalDamageTaken += dmg
+          this.damageNumbers.spawn(this.player.x, this.player.y - 14, String(dmg), 0xff5555, { fontSize: 16 })
+          this.shaker.trigger(10, 0.35)
+          this.vignette.trigger(0.5, 0.6)
         }
       }
     }
@@ -401,9 +519,17 @@ export class DungeonArena extends Container {
 
   destroyArena() {
     this.active = false
+    this.position.set(0, 0)
     this.player?.destroy()
     this.boss?.destroy()
     this.bullets?.destroyAll()
     this.orbs?.destroyAll()
+    this.hitSparks?.destroy()
+    this.damageNumbers?.destroy()
+    this.vignette?.destroy()
+    this.strikes?.destroy()
+    // Clear lingering flash effects
+    for (const fx of this.flashEffects) fx.gfx.destroy()
+    this.flashEffects = []
   }
 }

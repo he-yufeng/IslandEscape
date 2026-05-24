@@ -54,6 +54,10 @@ export class PlayerCombat {
       piercing: 0,
       moveSpeed: 160,
       maxHp: 15,
+      bounces: 0,
+      critChance: 0,
+      flashCooldownMul: 1,
+      lifestealHits: 0,
     }
 
     this.gfx = new Graphics()
@@ -111,7 +115,7 @@ export class PlayerCombat {
       this.x = Math.max(PLAYER_SIZE, Math.min(ARENA_W - PLAYER_SIZE, this.x + Math.cos(aimAngle) * FLASH_DISTANCE))
       this.y = Math.max(PLAYER_SIZE, Math.min(ARENA_H - PLAYER_SIZE, this.y + Math.sin(aimAngle) * FLASH_DISTANCE))
       this.invincibleUntil = Date.now() + FLASH_INVINCIBILITY * 1000
-      this.flashCooldown = FLASH_COOLDOWN
+      this.flashCooldown = FLASH_COOLDOWN * (this.effects.flashCooldownMul ?? 1)
       this.onFlash?.(startX, startY, this.x, this.y)
     }
 
@@ -194,8 +198,9 @@ export class PlayerCombat {
   }
 
   getSkillCooldowns(): { flashPct: number; ultimatePct: number } {
+    const flashMax = FLASH_COOLDOWN * (this.effects.flashCooldownMul ?? 1)
     return {
-      flashPct: this.flashCooldown > 0 ? 1 - this.flashCooldown / FLASH_COOLDOWN : 1,
+      flashPct: this.flashCooldown > 0 ? 1 - this.flashCooldown / flashMax : 1,
       ultimatePct: this.ultimateCooldown > 0 ? 1 - this.ultimateCooldown / ULTIMATE_COOLDOWN : 1,
     }
   }
@@ -212,7 +217,8 @@ export class PlayerCombat {
 
     // Flash cooldown bar
     if (this.flashCooldown > 0) {
-      const pct = 1 - this.flashCooldown / FLASH_COOLDOWN
+      const flashMax = FLASH_COOLDOWN * (this.effects.flashCooldownMul ?? 1)
+      const pct = 1 - this.flashCooldown / flashMax
       g.rect(-barW / 2, yOff, barW, barH).fill(0x333355)
       g.rect(-barW / 2, yOff, barW * pct, barH).fill(0x66aaff)
     }
