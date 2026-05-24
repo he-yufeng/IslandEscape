@@ -42,6 +42,35 @@ function updateCharacterTradeSlot(state: GameState, charId: CharacterId): GameSt
   }
 }
 
+/**
+ * Find the most recent player-authored structured proposal in the conversation.
+ * Used when the NPC LLM signals accept=true so we execute the PLAYER's terms.
+ */
+function findLastPlayerProposal(messages: NegotiationMessage[]) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m && m.speaker === 'player' && m.proposal) return m.proposal
+  }
+  return null
+}
+
+/**
+ * Find the most recent NPC counter-offer that hasn't already been accepted/rejected.
+ * Used when the player clicks Accept so we execute the NPC's terms.
+ */
+function findLastNpcProposal(messages: NegotiationMessage[], target: CharacterId) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (!m) continue
+    if (m.speaker === 'player') continue
+    if (m.speaker !== target) continue
+    if (!m.proposal) continue
+    if (m.accept === true) return null // NPC already accepted — server already handled
+    return m.proposal
+  }
+  return null
+}
+
 const routes: FastifyPluginAsync = async (fastify) => {
   // Create new game
   fastify.post('/api/games', async (_request, reply) => {
@@ -162,6 +191,7 @@ const routes: FastifyPluginAsync = async (fastify) => {
         const playerMsg: NegotiationMessage = {
           speaker: 'player',
           text: action.message,
+          ...(action.proposal ? { proposal: action.proposal } : {}),
         }
 
         const negotiation: ActiveNegotiation = {
@@ -193,11 +223,12 @@ const routes: FastifyPluginAsync = async (fastify) => {
         broadcastSSE(id, { type: 'negotiation', message: playerMsg })
         broadcastSSE(id, { type: 'negotiation', message: npcMsg })
 
-        // If NPC immediately accepted
-        if (npcReply.accept && npcMsg.proposal) {
+        // NPC accepted player's last structured proposal — execute the PLAYER's terms.
+        const lastPlayerProposal = findLastPlayerProposal(negotiation.messages)
+        if (npcReply.accept && !npcReply.reject && lastPlayerProposal) {
           session.state = executePeerTrade(
-            session.state, npcMsg.proposal.from, npcMsg.proposal.to,
-            npcMsg.proposal.offer, npcMsg.proposal.request,
+            session.state, lastPlayerProposal.from, lastPlayerProposal.to,
+            lastPlayerProposal.offer, lastPlayerProposal.request,
           )
           // Track that player traded with this NPC today
           session.state = {
@@ -217,6 +248,7 @@ const routes: FastifyPluginAsync = async (fastify) => {
             conversationId: convId,
             messages: negotiation.messages,
           },
+          negotiationDone: !negotiations.has(id),
         })
       }
 
@@ -235,25 +267,32 @@ const routes: FastifyPluginAsync = async (fastify) => {
           speaker: 'player',
           text: action.message,
           accept: action.accept,
+          ...(action.proposal ? { proposal: action.proposal } : {}),
         }
         negotiation.messages.push(playerMsg)
         broadcastSSE(id, { type: 'negotiation', message: playerMsg })
 
-        // If player accepted, find the last proposal and execute
+        // If player accepted, execute the LATEST NPC proposal (not their own).
         if (action.accept) {
-          const lastProposal = [...negotiation.messages].reverse().find(m => m.proposal)?.proposal
-          if (lastProposal) {
-            session.state = executePeerTrade(
-              session.state, lastProposal.from, lastProposal.to,
-              lastProposal.offer, lastProposal.request,
-            )
-            // Track that player traded with this NPC today
-            session.state = {
-              ...session.state,
-              playerNpcTradedToday: [...session.state.playerNpcTradedToday, negotiation.target],
-            }
-            broadcastSSE(id, { type: 'trade_result', success: true, from: 'player', to: negotiation.target, summary: `Trade completed with ${negotiation.target}!` })
+          const npcProposal = findLastNpcProposal(negotiation.messages, negotiation.target)
+          if (!npcProposal) {
+            // Roll back the message so the conversation can continue cleanly.
+            negotiation.messages.pop()
+            return reply.status(400).send({
+              code: 'NO_NPC_PROPOSAL',
+              message: `${negotiation.target} hasn't put a concrete offer on the table yet.`,
+            })
           }
+          session.state = executePeerTrade(
+            session.state, npcProposal.from, npcProposal.to,
+            npcProposal.offer, npcProposal.request,
+          )
+          // Track that player traded with this NPC today
+          session.state = {
+            ...session.state,
+            playerNpcTradedToday: [...session.state.playerNpcTradedToday, negotiation.target],
+          }
+          broadcastSSE(id, { type: 'trade_result', success: true, from: 'player', to: negotiation.target, summary: `Trade completed with ${negotiation.target}!` })
           negotiations.delete(id)
           broadcastSSE(id, { type: 'state_update', state: session.state })
           await persistGame(id, session.state)
@@ -295,13 +334,14 @@ const routes: FastifyPluginAsync = async (fastify) => {
         negotiation.messages.push(npcMsg)
         broadcastSSE(id, { type: 'negotiation', message: npcMsg })
 
-        // BUG 8: NPC accept and reject are mutually exclusive
+        // NPC accepted: only valid if player has a structured proposal in history.
+        // Execute PLAYER's terms (not the NPC's offer/request, which is just a rationale).
         if (npcReply.accept && !npcReply.reject) {
-          const lastProposal = [...negotiation.messages].reverse().find(m => m.proposal)?.proposal
-          if (lastProposal) {
+          const lastPlayerProposal = findLastPlayerProposal(negotiation.messages)
+          if (lastPlayerProposal) {
             session.state = executePeerTrade(
-              session.state, lastProposal.from, lastProposal.to,
-              lastProposal.offer, lastProposal.request,
+              session.state, lastPlayerProposal.from, lastPlayerProposal.to,
+              lastPlayerProposal.offer, lastPlayerProposal.request,
             )
             // Track that player traded with this NPC today
             session.state = {
@@ -309,8 +349,12 @@ const routes: FastifyPluginAsync = async (fastify) => {
               playerNpcTradedToday: [...session.state.playerNpcTradedToday, negotiation.target],
             }
             broadcastSSE(id, { type: 'trade_result', success: true, from: 'player', to: negotiation.target, summary: `Trade completed with ${negotiation.target}!` })
+            negotiations.delete(id)
+          } else {
+            // LLM agreed but there's nothing concrete to agree to — strip the accept
+            // flag so the UI doesn't show a phantom 'Accepted' tag.
+            npcMsg.accept = false
           }
-          negotiations.delete(id)
         } else if (npcReply.reject) {
           negotiations.delete(id)
           broadcastSSE(id, { type: 'trade_result', success: false, from: 'player', to: negotiation.target, summary: `${negotiation.target} rejected the deal.` })

@@ -54,6 +54,8 @@ function makeGameState(): GameState {
     aiTurnOrder: ['tom', 'sam', 'lily', 'jack'],
     currentAiIndex: 0,
     playerNpcTradedToday: [],
+    dungeonState: null,
+    playerDungeonUsedToday: false,
     updatedAt: now,
   }
 }

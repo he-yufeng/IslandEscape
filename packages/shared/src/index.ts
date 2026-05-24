@@ -23,12 +23,12 @@ export const GAME_CONFIG = {
   MERCHANT_WHEAT_PRICE_RANGE: [1, 4] as const,
   // Dungeon
   PLAYER_MAX_HP: 15,
-  BOSS_MAX_HP: 60,
+  BOSS_MAX_HP: 90,
   BASE_BULLET_DAMAGE: 2,
   BASE_BULLET_COOLDOWN: 400,
   BASE_MOVE_SPEED: 160,
-  BOSS_BULLET_DAMAGE: 3,
-  BOSS_CHARGE_DAMAGE: 5,
+  BOSS_BULLET_DAMAGE: 4,
+  BOSS_CHARGE_DAMAGE: 6,
   BOSS_CHARGE_SPEED: 300,
   DUNGEON_COIN_REWARD: 20,
   DUNGEON_RESOURCE_PENALTY: 5,
@@ -188,6 +188,8 @@ export const GameStateSchema = z.object({
   dungeonState: DungeonStateSchema.nullable().default(null),
   /** NPCs the player has traded with today (prevents duplicate trades) */
   playerNpcTradedToday: z.array(CharacterIdSchema),
+  /** True if the player has already entered the dungeon today (one run per day). */
+  playerDungeonUsedToday: z.boolean().default(false),
   updatedAt: z.string().datetime(),
 })
 export type GameState = z.infer<typeof GameStateSchema>
@@ -208,12 +210,16 @@ export const PlayerActionSchema = z.discriminatedUnion('type', [
     type: z.literal('trade_peer'),
     target: CharacterIdSchema,
     message: z.string().min(1),
+    /** Optional structured proposal that pairs with the free-form message. */
+    proposal: TradeProposalSchema.optional(),
   }),
   z.object({
     type: z.literal('negotiate_reply'),
     conversationId: z.string(),
     message: z.string().min(1),
     accept: z.boolean().optional(),
+    /** Optional structured proposal that pairs with the free-form message. */
+    proposal: TradeProposalSchema.optional(),
   }),
   z.object({ type: z.literal('end_turn') }),
   z.object({ type: z.literal('enter_dungeon') }),

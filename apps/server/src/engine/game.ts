@@ -82,6 +82,7 @@ export function createNewGame(gameId: string): GameState {
     currentAiIndex: 0,
     dungeonState: null,
     playerNpcTradedToday: [],
+    playerDungeonUsedToday: false,
     updatedAt: nowIso(),
   }
 }
@@ -132,6 +133,7 @@ export function startDay(state: GameState): GameState {
     aiTurnOrder,
     currentAiIndex: 0,
     playerNpcTradedToday: [],
+    playerDungeonUsedToday: false,
     log: [`--- Day ${state.day} ---`, `Merchant ship: fish ${merchantPrices.fishPrice}c, wheat ${merchantPrices.wheatPrice}c`, ...harvestLog],
     updatedAt: nowIso(),
   }
@@ -298,6 +300,7 @@ export function enterDungeon(state: GameState): GameState {
   const player = state.characters.player
   if (!player) throw new Error('Player not found')
   if (state.dungeonState?.active) throw new Error('Already in dungeon')
+  if (state.playerDungeonUsedToday) throw new Error('You have already entered the dungeon today.')
   if (player.tradeSlots <= 0) throw new Error('No trade slots remaining')
 
   const newState: GameState = {
@@ -307,6 +310,7 @@ export function enterDungeon(state: GameState): GameState {
       player: { ...player, tradeSlots: player.tradeSlots - 1 },
     },
     dungeonState: { active: true },
+    playerDungeonUsedToday: true,
     updatedAt: nowIso(),
   }
   return addLog(newState, 'Player entered the dungeon!')

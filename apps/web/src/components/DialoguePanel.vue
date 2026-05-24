@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useGameStore, CHARACTER_META } from '@/stores/game'
-import type { CharacterId, NegotiationMessage } from '@game/shared'
+import type { CharacterId, NegotiationMessage, TradeProposal } from '@game/shared'
 import { GAME_CONFIG } from '@game/shared'
 
 const props = defineProps<{
@@ -48,14 +48,33 @@ const friendshipColor = computed(() => {
 const messages = computed(() => game.activeNegotiation?.messages ?? [])
 const messageCount = computed(() => messages.value.length)
 const maxExchanges = GAME_CONFIG.MAX_NEGOTIATION_EXCHANGES
+const showThinking = computed(() => game.negotiationPending === props.target)
 
 const canSend = computed(() => {
   return messageCount.value < maxExchanges * 2 && !game.isLoading
 })
 
-// Auto-scroll on new messages
+/**
+ * The latest NPC counter-offer that the player can act on.
+ * Excludes NPC's own accept (which already executed a trade) and reject.
+ */
+const acceptableNpcProposal = computed(() => {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const m = messages.value[i]
+    if (!m) continue
+    if (m.speaker === 'player') continue       // player's own proposals don't count
+    if (!m.proposal) continue                  // text-only NPC reply
+    if (m.accept === true) return null         // NPC already accepted — handled by server
+    return m
+  }
+  return null
+})
+
+const canAccept = computed(() => acceptableNpcProposal.value !== null && !game.isLoading)
+
+// Auto-scroll on new messages or when thinking indicator appears
 watch(
-  messages,
+  [messages, showThinking],
   async () => {
     await nextTick()
     if (chatContainer.value) {
@@ -65,23 +84,40 @@ watch(
   { deep: true },
 )
 
-function buildTemplateMessage(): string {
+function buildTemplateProposal(): { text: string; proposal: TradeProposal } {
   const action = templateAction.value
   const resource = templateResource.value
   const amount = templateAmount.value
   const price = templatePrice.value
 
+  const text = action === 'buy'
+    ? `I'd like to buy ${amount} ${resource} from you for ${price} coins`
+    : `I'll sell you ${amount} ${resource} for ${price} coins`
+
+  // Buy = player gives coins, gets resource. Sell = player gives resource, gets coins.
+  const offer = { fish: 0, wheat: 0, coins: 0 }
+  const request = { fish: 0, wheat: 0, coins: 0 }
   if (action === 'buy') {
-    return `I'd like to buy ${amount} ${resource} from you for ${price} coins`
+    offer.coins = price
+    request[resource] = amount
   } else {
-    return `I'll sell you ${amount} ${resource} for ${price} coins`
+    offer[resource] = amount
+    request.coins = price
   }
+
+  const proposal: TradeProposal = {
+    from: 'player',
+    to: props.target,
+    offer,
+    request,
+  }
+  return { text, proposal }
 }
 
 async function sendTemplate() {
   if (!canSend.value) return
-  const msg = buildTemplateMessage()
-  await sendMessage(msg)
+  const { text, proposal } = buildTemplateProposal()
+  await sendMessage(text, proposal)
 }
 
 async function sendFreeForm() {
@@ -91,7 +127,7 @@ async function sendFreeForm() {
   freeFormMessage.value = ''
 }
 
-async function sendMessage(message: string) {
+async function sendMessage(message: string, proposal?: TradeProposal) {
   if (!game.activeNegotiation) return
 
   // First message of a new negotiation → initiate trade via trade_peer action
@@ -100,6 +136,7 @@ async function sendMessage(message: string) {
       type: 'trade_peer',
       target: game.activeNegotiation.target,
       message,
+      ...(proposal ? { proposal } : {}),
     })
   } else {
     // Subsequent messages or resumed conversation → negotiate_reply
@@ -107,11 +144,12 @@ async function sendMessage(message: string) {
       type: 'negotiate_reply',
       conversationId: game.activeNegotiation.conversationId,
       message,
+      ...(proposal ? { proposal } : {}),
     })
   }
 }
 
-function validateProposal(proposal: { from: CharacterId; to: CharacterId; offer: { fish: number; wheat: number; coins: number }; request: { fish: number; wheat: number; coins: number } }): string | null {
+function validateProposal(proposal: TradeProposal): string | null {
   const fromChar = game.state?.characters[proposal.from]
   const toChar = game.state?.characters[proposal.to]
   if (!fromChar || !toChar) return 'Character not found.'
@@ -131,21 +169,6 @@ function validateProposal(proposal: { from: CharacterId; to: CharacterId; offer:
   if (toResources.wheat < r.wheat) return `${proposal.to} doesn't have enough wheat (has ${toResources.wheat}, needs ${r.wheat}).`
   if (toResources.coins < r.coins) return `${proposal.to} doesn't have enough coins (has ${toResources.coins}, needs ${r.coins}).`
 
-  // Check resulting resources are non-negative
-  const newFromFish = fromResources.fish - o.fish + r.fish
-  const newFromWheat = fromResources.wheat - o.wheat + r.wheat
-  const newFromCoins = fromResources.coins - o.coins + r.coins
-  const newToFish = toResources.fish + o.fish - r.fish
-  const newToWheat = toResources.wheat + o.wheat - r.wheat
-  const newToCoins = toResources.coins + o.coins - r.coins
-
-  if (newFromFish < 0) return `Trade would leave ${proposal.from} with negative fish.`
-  if (newFromWheat < 0) return `Trade would leave ${proposal.from} with negative wheat.`
-  if (newFromCoins < 0) return `Trade would leave ${proposal.from} with negative coins.`
-  if (newToFish < 0) return `Trade would leave ${proposal.to} with negative fish.`
-  if (newToWheat < 0) return `Trade would leave ${proposal.to} with negative wheat.`
-  if (newToCoins < 0) return `Trade would leave ${proposal.to} with negative coins.`
-
   return null
 }
 
@@ -153,19 +176,18 @@ const validationError = ref('')
 
 async function acceptDeal() {
   if (!game.activeNegotiation) return
+  const npcProposal = acceptableNpcProposal.value
+  if (!npcProposal?.proposal) {
+    validationError.value = `${targetMeta.value.name} hasn't made a concrete offer yet — counter or reject.`
+    setTimeout(() => { validationError.value = '' }, 4000)
+    return
+  }
 
-  // Find the last proposal to validate
-  const lastProposal = [...game.activeNegotiation.messages]
-    .reverse()
-    .find((m: NegotiationMessage) => m.proposal)?.proposal
-
-  if (lastProposal) {
-    const error = validateProposal(lastProposal)
-    if (error) {
-      validationError.value = error
-      setTimeout(() => { validationError.value = '' }, 4000)
-      return
-    }
+  const error = validateProposal(npcProposal.proposal)
+  if (error) {
+    validationError.value = error
+    setTimeout(() => { validationError.value = '' }, 4000)
+    return
   }
 
   validationError.value = ''
@@ -195,6 +217,24 @@ async function rejectDeal() {
 function speakerMeta(speakerId: string) {
   return CHARACTER_META[speakerId] ?? { name: speakerId, emoji: '?' }
 }
+
+/** Pretty-print a TradeOffer for proposal display. Returns null when nothing is offered. */
+function formatOffer(offer: { fish: number; wheat: number; coins: number }): string | null {
+  const parts: string[] = []
+  if (offer.fish) parts.push(`${offer.fish} fish`)
+  if (offer.wheat) parts.push(`${offer.wheat} wheat`)
+  if (offer.coins) parts.push(`${offer.coins} coins`)
+  if (parts.length === 0) return null
+  return parts.join(', ')
+}
+
+function proposalSummary(msg: NegotiationMessage): { offer: string | null; request: string | null } {
+  if (!msg.proposal) return { offer: null, request: null }
+  return {
+    offer: formatOffer(msg.proposal.offer),
+    request: formatOffer(msg.proposal.request),
+  }
+}
 </script>
 
 <template>
@@ -222,7 +262,7 @@ function speakerMeta(speakerId: string) {
 
     <!-- Chat messages -->
     <div ref="chatContainer" class="chat-messages">
-      <div v-if="messages.length === 0" class="chat-empty">
+      <div v-if="messages.length === 0 && !showThinking" class="chat-empty">
         {{ game.activeNegotiation?.isNew ? 'Start the conversation with a trade proposal below...' : 'Continuing previous conversation...' }}
       </div>
       <div
@@ -233,6 +273,28 @@ function speakerMeta(speakerId: string) {
         <div :class="['chat-bubble', msg.speaker === 'player' ? 'bubble-player' : 'bubble-npc']">
           <div class="bubble-speaker">{{ speakerMeta(msg.speaker).name }}</div>
           <div class="bubble-text">{{ msg.text }}</div>
+          <div v-if="msg.proposal" class="proposal-block">
+            <div class="proposal-row">
+              <span class="proposal-label">Offers</span>
+              <span class="proposal-value">{{ proposalSummary(msg).offer ?? 'nothing' }}</span>
+            </div>
+            <div class="proposal-row">
+              <span class="proposal-label">Wants</span>
+              <span class="proposal-value">{{ proposalSummary(msg).request ?? 'nothing' }}</span>
+            </div>
+          </div>
+          <div v-if="msg.accept === true" class="proposal-tag tag-accept">Accepted</div>
+        </div>
+      </div>
+      <!-- Thinking indicator while server is awaiting LLM reply -->
+      <div v-if="showThinking" class="chat-bubble-row chat-bubble-left">
+        <div class="chat-bubble bubble-npc thinking-bubble">
+          <div class="bubble-speaker">{{ targetMeta.name }}</div>
+          <div class="thinking-dots" aria-label="thinking">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -294,9 +356,20 @@ function speakerMeta(speakerId: string) {
       {{ validationError }}
     </div>
 
+    <!-- Accept hint when no NPC offer is on the table -->
+    <div v-else-if="!canAccept" class="accept-hint">
+      Wait for {{ targetMeta.name }} to make a concrete offer before accepting.
+    </div>
+
     <!-- Accept / Reject -->
     <div class="deal-buttons">
-      <button class="deal-accept" @click="acceptDeal">Accept Deal</button>
+      <button
+        :disabled="!canAccept"
+        :class="['deal-accept', canAccept ? '' : 'deal-disabled']"
+        @click="acceptDeal"
+      >
+        Accept Deal
+      </button>
       <button class="deal-reject" @click="rejectDeal">Reject</button>
     </div>
   </div>
@@ -443,6 +516,86 @@ function speakerMeta(speakerId: string) {
   word-break: break-word;
 }
 
+.proposal-block {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(200, 160, 96, 0.32);
+  font-size: 10px;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.proposal-row {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.proposal-label {
+  flex-shrink: 0;
+  width: 48px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #c8a060;
+}
+.proposal-value {
+  font-weight: 700;
+  color: #e6d2a3;
+}
+.proposal-tag {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.tag-accept {
+  background: rgba(34, 170, 85, 0.22);
+  color: #8aff88;
+  border: 1px solid rgba(34, 170, 85, 0.5);
+}
+
+.accept-hint {
+  padding: 6px 10px;
+  margin: 0 8px;
+  background: rgba(132, 186, 230, 0.08);
+  border: 1px solid rgba(132, 186, 230, 0.25);
+  border-radius: 4px;
+  color: #aac5d8;
+  font-size: 10px;
+  line-height: 1.4;
+  font-family: monospace;
+}
+
+.thinking-bubble {
+  padding-bottom: 8px;
+}
+.thinking-dots {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px 0 2px;
+}
+.thinking-dots .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8a8aa8;
+  animation: think-bounce 1.2s infinite ease-in-out both;
+}
+.thinking-dots .dot:nth-child(1) { animation-delay: -0.32s; }
+.thinking-dots .dot:nth-child(2) { animation-delay: -0.16s; }
+@keyframes think-bounce {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.5; }
+  40% { transform: scale(1.1); opacity: 1; }
+}
+
 .trade-template {
   padding: 8px;
   background: #1a1a3a;
@@ -572,6 +725,14 @@ function speakerMeta(speakerId: string) {
 }
 .deal-accept:hover {
   background: #1db954;
+}
+.deal-disabled {
+  background: #2a3a4a !important;
+  color: #5a6a7a !important;
+  cursor: not-allowed;
+}
+.deal-disabled:hover {
+  background: #2a3a4a !important;
 }
 
 .deal-reject {

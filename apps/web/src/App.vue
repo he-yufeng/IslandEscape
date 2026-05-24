@@ -8,6 +8,8 @@ import InteractionPrompt from '@/components/InteractionPrompt.vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import EventLog from '@/components/EventLog.vue'
 import CardPicker from '@/components/CardPicker.vue'
+import ResourceToasts from '@/components/ResourceToasts.vue'
+import PhaseHint from '@/components/PhaseHint.vue'
 import type { InteractionType } from '@/game/GameWorld'
 
 const InteractionPreview3D = defineAsyncComponent(() => import('@/components/InteractionPreview3D.vue'))
@@ -138,6 +140,9 @@ const gameOverMessage = computed(() => {
           @player-moved="onPlayerMoved"
         />
 
+        <!-- Persistent phase guidance for new players -->
+        <PhaseHint v-if="!game.dungeonMode" />
+
         <!-- Action Menu Popup (centered over canvas) -->
         <Transition name="popup">
           <div v-if="game.showActionMenu && game.currentInteraction" class="action-menu-overlay">
@@ -234,6 +239,9 @@ const gameOverMessage = computed(() => {
 
     <!-- Event Log (bottom, collapsible) -->
     <EventLog />
+
+    <!-- Floating resource change toasts (overlay) -->
+    <ResourceToasts />
   </div>
 </template>
 

@@ -1,11 +1,13 @@
 import { Container, Graphics } from 'pixi.js'
+import { GAME_CONFIG } from '@game/shared'
 
 const ARENA_W = 640
 const ARENA_H = 480
 const BOSS_RADIUS = 24
-const BOSS_SPEED = 60       // pixels per second
-const SHOOT_COOLDOWN = 2.0  // seconds
+const BOSS_SPEED = 80       // pixels per second
+const SHOOT_COOLDOWN = 1.6  // seconds
 const CHARGE_COOLDOWN = 4.0 // seconds
+const RING_COOLDOWN = 6.0   // seconds (phase2+)
 const SUMMON_COOLDOWN = 8.0 // seconds (phase2+)
 const CHARGE_SPEED = 280    // pixels per second
 const CHARGE_DURATION = 0.8 // seconds
@@ -15,7 +17,8 @@ const SUMMON_WINDUP = 0.6   // seconds
 const HIT_FLASH_DURATION = 0.1
 const DEATH_DURATION = 0.7
 
-type BossState = 'idle' | 'winding_up' | 'shooting' | 'charging' | 'stunned' | 'summoning' | 'dying' | 'dead'
+type BossState = 'idle' | 'winding_up' | 'shooting' | 'charging' | 'stunned' | 'summoning' | 'ring_shooting' | 'dying' | 'dead'
+type WindupTrigger = 'shoot' | 'charge' | 'ring' | null
 
 export class Boss {
   public x: number
@@ -26,10 +29,11 @@ export class Boss {
 
   private gfx: Graphics
   private state: BossState = 'idle'
-  private nextWindupTrigger: 'shoot' | 'charge' | 'summon' | null = null
+  private nextWindupTrigger: WindupTrigger = null
   private stateTimer = 0
   private shootTimer = 0
   private chargeTimer = 0
+  private ringTimer = 0
   private summonTimer = 0
   private chargeAngle = 0
   private chargeVx = 0
@@ -44,6 +48,7 @@ export class Boss {
 
   // Callbacks
   public onShoot: ((angle: number, count: number, speedMul: number) => void) | null = null
+  public onRingShoot: ((count: number, speedMul: number) => void) | null = null
   public onChargeEnd: (() => void) | null = null
   public onXPOrbSpawn: ((x: number, y: number, count: number) => void) | null = null
   public onSummon: ((x: number, y: number) => void) | null = null
@@ -52,7 +57,7 @@ export class Boss {
   constructor(container: Container) {
     this.x = ARENA_W / 2
     this.y = 80
-    this.maxHp = 60
+    this.maxHp = GAME_CONFIG.BOSS_MAX_HP
     this.hp = this.maxHp
 
     this.gfx = new Graphics()
@@ -111,7 +116,10 @@ export class Boss {
         this.moveToward(playerX, playerY, BOSS_SPEED * ds)
         this.shootTimer += ds
         this.chargeTimer += ds
-        if (this.phase2) this.summonTimer += ds
+        if (this.phase2) {
+          this.summonTimer += ds
+          this.ringTimer += ds
+        }
 
         if (this.phase2 && this.summonTimer >= SUMMON_COOLDOWN * cooldownMul) {
           this.summonTimer = 0
@@ -119,6 +127,11 @@ export class Boss {
           this.stateTimer = 0
           this.pendingSummonX = playerX
           this.pendingSummonY = playerY
+        } else if (this.phase2 && this.ringTimer >= RING_COOLDOWN * cooldownMul) {
+          this.ringTimer = 0
+          this.state = 'winding_up'
+          this.stateTimer = 0
+          this.nextWindupTrigger = 'ring'
         } else if (this.shootTimer >= SHOOT_COOLDOWN * cooldownMul) {
           this.shootTimer = 0
           this.state = 'winding_up'
@@ -130,7 +143,7 @@ export class Boss {
           this.stateTimer = 0
           this.nextWindupTrigger = 'charge'
           this.chargeAngle = Math.atan2(playerY - this.y, playerX - this.x)
-          const chargeSpeedMul = this.phase3 ? 1.2 : 1.0
+          const chargeSpeedMul = this.phase3 ? 1.4 : 1.0
           this.chargeVx = Math.cos(this.chargeAngle) * CHARGE_SPEED * chargeSpeedMul
           this.chargeVy = Math.sin(this.chargeAngle) * CHARGE_SPEED * chargeSpeedMul
         }
@@ -141,6 +154,12 @@ export class Boss {
           if (this.nextWindupTrigger === 'charge') {
             this.state = 'charging'
             this.stateTimer = 0
+          } else if (this.nextWindupTrigger === 'ring') {
+            this.state = 'ring_shooting'
+            this.stateTimer = 0
+            const ringCount = this.phase3 ? 12 : 8
+            const ringSpeedMul = this.phase3 ? 1.2 : 1.0
+            this.onRingShoot?.(ringCount, ringSpeedMul)
           } else {
             this.state = 'shooting'
             this.stateTimer = 0
@@ -155,6 +174,12 @@ export class Boss {
 
       case 'shooting':
         if (this.stateTimer >= 0.3) {
+          this.state = 'idle'
+        }
+        break
+
+      case 'ring_shooting':
+        if (this.stateTimer >= 0.4) {
           this.state = 'idle'
         }
         break
@@ -272,6 +297,14 @@ export class Boss {
       ).stroke({ color: 0xff4444, width: 3, alpha: 0.8 })
     }
 
+    // Ring shot telegraph (expanding rings during windup)
+    if (this.state === 'winding_up' && this.nextWindupTrigger === 'ring') {
+      const t = Math.min(1, this.stateTimer / WINDUP_DURATION)
+      const ringR = BOSS_RADIUS * (1.4 + t * 0.8)
+      g.circle(0, 0, ringR).stroke({ color: 0xff8844, width: 2, alpha: 0.8 - t * 0.4 })
+      g.circle(0, 0, ringR * 0.7).stroke({ color: 0xffaa44, width: 1, alpha: 0.6 - t * 0.3 })
+    }
+
     // Summoning ring telegraph
     if (this.state === 'summoning') {
       const ringR = BOSS_RADIUS + 8 + Math.sin(this.stateTimer * 14) * 4
@@ -287,6 +320,14 @@ export class Boss {
     return this.state === 'charging'
   }
 
+  isPhase3(): boolean {
+    return this.phase3
+  }
+
+  isPhase2(): boolean {
+    return this.phase2
+  }
+
   isDying(): boolean {
     return this.state === 'dying'
   }
@@ -296,7 +337,7 @@ export class Boss {
   }
 
   getChargeDamage(): number {
-    return 5
+    return GAME_CONFIG.BOSS_CHARGE_DAMAGE
   }
 
   destroy() {

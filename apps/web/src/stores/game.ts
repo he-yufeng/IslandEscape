@@ -37,6 +37,8 @@ export const useGameStore = defineStore('game', () => {
   const isLoading = ref(false)
   const activeNegotiation = ref<NegotiationState | null>(null)
   const thinkingCharacter = ref<CharacterId | null>(null)
+  /** Set to the NPC id while we are awaiting an LLM reply during a negotiation HTTP round-trip. */
+  const negotiationPending = ref<CharacterId | null>(null)
   const errorMessage = ref<string | null>(null)
 
   // ---- Map / interaction state (for PixiJS ↔ Vue bridge) ----
@@ -49,7 +51,7 @@ export const useGameStore = defineStore('game', () => {
   const dungeonMode = ref(false)
   const showCardPicker = ref(false)
   const pendingCards = ref<Array<{ id: string; name: string; description: string; icon: string }>>([])
-  const dungeonStats = ref({ hp: 15, maxHp: 15, bossHp: 60, bossMaxHp: 60, xp: 0, xpNext: 30 })
+  const dungeonStats = ref({ hp: 15, maxHp: 15, bossHp: 90, bossMaxHp: 90, xp: 0, xpNext: 30 })
   const dungeonResult = ref<{ win: boolean; damageDealt: number; damageTaken: number; cardsCollected: number } | null>(null)
 
   // ---- SSE management ----
@@ -123,6 +125,47 @@ export const useGameStore = defineStore('game', () => {
   async function submitAction(action: PlayerAction) {
     if (!gameId.value) return
     isLoading.value = true
+
+    // Optimistic chat: surface the player's message in the dialogue panel BEFORE
+    // we await the server's LLM round-trip. Server's authoritative message list
+    // replaces this on response (which de-duplicates the optimistic entry).
+    let optimisticPushed = false
+    if (action.type === 'trade_peer' || action.type === 'negotiate_reply') {
+      const target =
+        action.type === 'trade_peer'
+          ? action.target
+          : (activeNegotiation.value?.target ?? null)
+      if (target) {
+        if (!activeNegotiation.value || activeNegotiation.value.target !== target) {
+          activeNegotiation.value = {
+            conversationId:
+              action.type === 'negotiate_reply' ? action.conversationId : `conv_${Date.now()}`,
+            target,
+            messages: [],
+            isOpen: true,
+            isNew: action.type === 'trade_peer',
+          }
+          showDialoguePanel.value = true
+          dialogueTarget.value = target
+        }
+        activeNegotiation.value.messages = [
+          ...activeNegotiation.value.messages,
+          {
+            speaker: 'player',
+            text: action.message,
+            ...('proposal' in action && action.proposal ? { proposal: action.proposal } : {}),
+            ...('accept' in action && action.accept !== undefined ? { accept: action.accept } : {}),
+          },
+        ]
+        // For accept/reject, the server short-circuits (no LLM call) — only show
+        // the thinking bubble for messages that will actually trigger an NPC reply.
+        if (!('accept' in action) || action.accept === undefined) {
+          negotiationPending.value = target
+        }
+        optimisticPushed = true
+      }
+    }
+
     try {
       const res = await apiSubmitAction(gameId.value, action) as Record<string, unknown>
       state.value = res.state as GameState
@@ -167,8 +210,13 @@ export const useGameStore = defineStore('game', () => {
     } catch (err) {
       errorMessage.value = err instanceof Error ? err.message : 'Action failed'
       setTimeout(() => { errorMessage.value = null }, 3000)
+      // Roll back the optimistic message so the user can retry from a clean state
+      if (optimisticPushed && activeNegotiation.value) {
+        activeNegotiation.value.messages = activeNegotiation.value.messages.slice(0, -1)
+      }
     } finally {
       isLoading.value = false
+      negotiationPending.value = null
     }
   }
 
@@ -343,7 +391,7 @@ export const useGameStore = defineStore('game', () => {
       cardsCollected: dungeonResult.value?.cardsCollected ?? 0,
     }
     dungeonResult.value = null
-    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 60, bossMaxHp: 60, xp: 0, xpNext: 30 }
+    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 90, bossMaxHp: 90, xp: 0, xpNext: 30 }
     await submitAction({ type: 'dungeon_result', result })
     // dungeonMode will be set to false by the submitAction handler when state.dungeonState becomes null
   }
@@ -351,7 +399,7 @@ export const useGameStore = defineStore('game', () => {
   async function leaveDungeon() {
     if (!gameId.value) return
     dungeonResult.value = null
-    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 60, bossMaxHp: 60, xp: 0, xpNext: 30 }
+    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 90, bossMaxHp: 90, xp: 0, xpNext: 30 }
     await submitAction({ type: 'leave_dungeon' })
     // dungeonMode will be set to false by the submitAction handler
   }
@@ -365,6 +413,7 @@ export const useGameStore = defineStore('game', () => {
     errorMessage,
     activeNegotiation,
     thinkingCharacter,
+    negotiationPending,
     currentInteraction,
     showActionMenu,
     showDialoguePanel,

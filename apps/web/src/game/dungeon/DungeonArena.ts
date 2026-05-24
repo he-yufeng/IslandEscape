@@ -102,6 +102,7 @@ export class DungeonArena extends Container {
     this.boss = new Boss(this)
 
     this.boss.onShoot = (angle, count, speedMul) => this.bossShoot(angle, count, speedMul)
+    this.boss.onRingShoot = (count, speedMul) => this.bossRingShoot(count, speedMul)
     this.boss.onChargeEnd = () => {} // handled by collision detection
     this.boss.onXPOrbSpawn = (x, y, count) => {
       for (let i = 0; i < count; i++) {
@@ -110,10 +111,14 @@ export class DungeonArena extends Container {
       }
     }
     this.boss.onSummon = (x, y) => {
-      // Spawn 3 strikes around the captured player position
+      // Spawn strikes around the captured player position; phase 3 spawns more
       this.strikes.spawn(x, y, { radius: 30, damage: 2, telegraph: 0.9 })
       this.strikes.spawn(x + 50, y - 30, { radius: 26, damage: 2, telegraph: 1.0 })
       this.strikes.spawn(x - 50, y + 20, { radius: 26, damage: 2, telegraph: 1.0 })
+      if (this.boss.isPhase3()) {
+        this.strikes.spawn(x + 30, y + 60, { radius: 26, damage: 2, telegraph: 1.1 })
+        this.strikes.spawn(x - 70, y - 60, { radius: 26, damage: 2, telegraph: 1.2 })
+      }
     }
     this.boss.onDeathComplete = () => {
       this.bossDeathPending = false
@@ -259,6 +264,28 @@ export class DungeonArena extends Container {
         })
       }
     }
+  }
+
+  private bossRingShoot(count: number, speedMul = 1) {
+    const speed = (140 + Math.random() * 30) * speedMul
+    const offset = Math.random() * Math.PI * 2
+    for (let i = 0; i < count; i++) {
+      const a = offset + (Math.PI * 2 * i) / count
+      const bullet = this.bullets.getInactive()
+      if (bullet) {
+        bullet.spawn({
+          x: this.boss.x,
+          y: this.boss.y,
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          damage: GAME_CONFIG.BOSS_BULLET_DAMAGE,
+          size: 8,
+          piercing: 0,
+          owner: 'boss',
+        })
+      }
+    }
+    this.shaker.trigger(4, 0.18)
   }
 
   /** Check if the game should pause for card picker */

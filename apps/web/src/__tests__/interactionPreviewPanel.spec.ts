@@ -72,6 +72,8 @@ const baseState: GameState = {
   aiTurnOrder: ['tom', 'sam', 'lily', 'jack'],
   currentAiIndex: 0,
   playerNpcTradedToday: ['sam'],
+  dungeonState: null,
+  playerDungeonUsedToday: false,
   updatedAt: '2026-05-24T00:00:00.000Z',
 }
 

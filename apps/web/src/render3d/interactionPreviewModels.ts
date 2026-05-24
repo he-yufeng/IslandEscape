@@ -305,6 +305,133 @@ function createNpcPreview(characterId: CharacterId) {
   return group
 }
 
+function createDungeonPreview() {
+  const group = createStage(0x1a1622, 0x6f3a4a)
+  const STONE = 0x4a4658
+  const STONE_DARK = 0x2c2933
+  const STONE_LIGHT = 0x6c6878
+  const VOID = 0x05050a
+  const TORCH = 0xff8a3c
+  const BONE = 0xe6dfc8
+
+  // Cave mouth backing (the dark void inside)
+  const voidPlate = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.05, 1.0),
+    new THREE.MeshBasicMaterial({ color: VOID }),
+  )
+  addMesh(group, voidPlate, 0, 0.62, -0.04)
+
+  // Layered void glow for depth
+  const innerGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.55, 0.5),
+    new THREE.MeshBasicMaterial({ color: 0x4a1a2a, transparent: true, opacity: 0.6 }),
+  )
+  addMesh(group, innerGlow, 0, 0.55, -0.035)
+
+  // Arch left pillar
+  const pillarL = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 1.05, 0.34),
+    makeMaterial(STONE, 0.95, 0.04),
+  )
+  addMesh(group, pillarL, -0.55, 0.55, 0)
+
+  // Arch right pillar
+  const pillarR = pillarL.clone()
+  pillarR.position.set(0.55, 0.55, 0)
+  group.add(pillarR)
+
+  // Arch keystone (top block)
+  const keystone = new THREE.Mesh(
+    new THREE.BoxGeometry(1.45, 0.28, 0.36),
+    makeMaterial(STONE_LIGHT, 0.92, 0.05),
+  )
+  addMesh(group, keystone, 0, 1.18, 0)
+
+  // Arch curve approximation: 3 stones forming a top arch
+  for (let i = 0; i < 3; i += 1) {
+    const t = (i - 1) * 0.42
+    const block = new THREE.Mesh(
+      new THREE.BoxGeometry(0.36, 0.22, 0.32),
+      makeMaterial(STONE, 0.94, 0.04),
+    )
+    block.position.set(t, 1.04, 0)
+    block.rotation.z = -t * 0.25
+    group.add(block)
+  }
+
+  // Loose stones at the base
+  for (let i = 0; i < 3; i += 1) {
+    const stone = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.1 + Math.random() * 0.04, 0),
+      makeMaterial(STONE_DARK, 0.96, 0.02),
+    )
+    stone.position.set(-0.6 + i * 0.6, 0.08, 0.32 + (i % 2 === 0 ? 0.04 : -0.04))
+    stone.rotation.y = Math.random() * Math.PI
+    group.add(stone)
+  }
+
+  // Torches: socket + flame on each pillar
+  for (const xOff of [-0.55, 0.55]) {
+    const socket = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.06, 0.18, 8),
+      makeMaterial(0x2a2230, 0.9, 0.05),
+    )
+    addMesh(group, socket, xOff, 0.92, 0.2)
+
+    const flame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.07, 0.2, 8),
+      new THREE.MeshStandardMaterial({
+        color: TORCH,
+        emissive: TORCH,
+        emissiveIntensity: 0.85,
+        roughness: 0.4,
+      }),
+    )
+    addMesh(group, flame, xOff, 1.08, 0.2)
+
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 12, 10),
+      new THREE.MeshBasicMaterial({ color: TORCH, transparent: true, opacity: 0.22 }),
+    )
+    addMesh(group, halo, xOff, 1.06, 0.2)
+  }
+
+  // Skull on the threshold
+  const skull = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, 14, 12),
+    makeMaterial(BONE, 0.78, 0.02),
+  )
+  skull.scale.set(1, 0.92, 1.02)
+  addMesh(group, skull, 0.18, 0.07, 0.36)
+
+  const jaw = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.025, 0.06),
+    makeMaterial(BONE, 0.78, 0.02),
+  )
+  addMesh(group, jaw, 0.18, 0.018, 0.4)
+
+  const eyeL = new THREE.Mesh(
+    new THREE.SphereGeometry(0.018, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0x080808 }),
+  )
+  addMesh(group, eyeL, 0.155, 0.085, 0.43)
+  const eyeR = eyeL.clone()
+  eyeR.position.x = 0.205
+  group.add(eyeR)
+
+  // Boss "menace" silhouette: red eyes deep in the cave
+  const menaceEyeL = new THREE.Mesh(
+    new THREE.SphereGeometry(0.035, 10, 10),
+    new THREE.MeshBasicMaterial({ color: 0xff3a3a }),
+  )
+  addMesh(group, menaceEyeL, -0.13, 0.7, -0.02)
+  const menaceEyeR = menaceEyeL.clone()
+  menaceEyeR.position.x = 0.13
+  group.add(menaceEyeR)
+
+  return group
+}
+
 export function createInteractionPreviewObject(interaction: InteractionType) {
   if (!interaction) return createDefaultPreview()
 
@@ -315,6 +442,8 @@ export function createInteractionPreviewObject(interaction: InteractionType) {
       return createFarmPreview()
     case 'merchant':
       return createMerchantPreview()
+    case 'dungeon':
+      return createDungeonPreview()
     case 'npc':
       return createNpcPreview(interaction.characterId)
   }

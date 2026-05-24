@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { GAME_CONFIG } from '@game/shared'
 
@@ -11,6 +11,33 @@ const coins = computed(() => game.playerState?.resources.coins ?? 0)
 const escapeProgress = computed(() => {
   const pct = Math.min(100, Math.round((coins.value / GAME_CONFIG.WIN_COINS) * 100))
   return pct
+})
+
+// Pulse animation tokens — bumped on every change to retrigger CSS animation.
+const fishPulse = ref(0)
+const wheatPulse = ref(0)
+const coinsPulse = ref(0)
+const fishTone = ref<'pos' | 'neg' | ''>('')
+const wheatTone = ref<'pos' | 'neg' | ''>('')
+const coinsTone = ref<'pos' | 'neg' | ''>('')
+
+watch(fish, (newVal, oldVal) => {
+  if (oldVal === undefined || newVal === oldVal) return
+  fishPulse.value++
+  fishTone.value = newVal > oldVal ? 'pos' : 'neg'
+  window.setTimeout(() => { fishTone.value = '' }, 600)
+})
+watch(wheat, (newVal, oldVal) => {
+  if (oldVal === undefined || newVal === oldVal) return
+  wheatPulse.value++
+  wheatTone.value = newVal > oldVal ? 'pos' : 'neg'
+  window.setTimeout(() => { wheatTone.value = '' }, 600)
+})
+watch(coins, (newVal, oldVal) => {
+  if (oldVal === undefined || newVal === oldVal) return
+  coinsPulse.value++
+  coinsTone.value = newVal > oldVal ? 'pos' : 'neg'
+  window.setTimeout(() => { coinsTone.value = '' }, 600)
 })
 
 const phaseLabel = computed(() => {
@@ -74,17 +101,17 @@ const merchantWheat = computed(() => game.merchantPrices.wheatPrice)
     <!-- Resources -->
     <div class="hud-section" title="Fish">
       <span class="hud-icon">F</span>
-      <span class="hud-value text-sky-300">{{ fish }}</span>
+      <span :key="fishPulse" :class="['hud-value', 'text-sky-300', fishTone && `pulse-${fishTone}`]">{{ fish }}</span>
     </div>
 
     <div class="hud-section" title="Wheat">
       <span class="hud-icon">W</span>
-      <span class="hud-value text-amber-300">{{ wheat }}</span>
+      <span :key="wheatPulse" :class="['hud-value', 'text-amber-300', wheatTone && `pulse-${wheatTone}`]">{{ wheat }}</span>
     </div>
 
     <div class="hud-section" title="Coins">
       <span class="hud-icon">C</span>
-      <span class="hud-value text-yellow-300">{{ coins }}</span>
+      <span :key="coinsPulse" :class="['hud-value', 'text-yellow-300', coinsTone && `pulse-${coinsTone}`]">{{ coins }}</span>
     </div>
 
     <!-- Divider -->
@@ -224,5 +251,24 @@ const merchantWheat = computed(() => game.merchantPrices.wheatPrice)
   font-weight: bold;
   color: #fff;
   text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+
+.pulse-pos {
+  animation: hud-pulse-pos 0.6s ease-out;
+}
+.pulse-neg {
+  animation: hud-pulse-neg 0.6s ease-out;
+}
+
+@keyframes hud-pulse-pos {
+  0%   { transform: scale(1);    text-shadow: none; }
+  20%  { transform: scale(1.6);  text-shadow: 0 0 10px rgba(140, 240, 140, 0.95); color: #b3ffb3; }
+  100% { transform: scale(1);    text-shadow: none; }
+}
+
+@keyframes hud-pulse-neg {
+  0%   { transform: scale(1);    text-shadow: none; }
+  20%  { transform: scale(1.4);  text-shadow: 0 0 8px rgba(255, 120, 80, 0.9); color: #ff9a66; }
+  100% { transform: scale(1);    text-shadow: none; }
 }
 </style>
