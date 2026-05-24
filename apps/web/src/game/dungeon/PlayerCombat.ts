@@ -12,7 +12,6 @@ const FLASH_DISTANCE = 80
 const FLASH_COOLDOWN = 3.0   // seconds
 const FLASH_INVINCIBILITY = 0.15
 const ULTIMATE_COOLDOWN = 8.0 // seconds
-const ULTIMATE_BULLETS = 12
 
 // Pixel character colors (matching island Character.ts)
 const SHIRT_COLOR = 0xdd3333

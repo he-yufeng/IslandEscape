@@ -17,3 +17,4 @@ apps/server/*.db-shm
 apps/server/drizzle
 .devdbrc
 .codex-logs
+.claude/

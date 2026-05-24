@@ -1,7 +1,6 @@
 import { Container, Graphics } from 'pixi.js'
 
 const POOL_SIZE = 6
-const SPAWN_RADIUS = 12
 const ATTACK_RADIUS = 14
 const MOVE_SPEED = 65
 const SPAWN_DURATION = 0.55
