@@ -149,24 +149,48 @@ watch(
 
     if (latestEvent.type === 'ai_decision') {
       const decision = latestEvent.decision as Record<string, unknown> | undefined
-      const labor = decision?.labor as Record<string, unknown> | undefined
-      const action = (labor?.labor as string) || 'fish'
-      renderer.world.animateAIMove(latestEvent.characterId, action)
+      if (!decision) return
+      const charId = latestEvent.characterId
+      const world = renderer.world
 
-      // Show floating text for action
-      const char = renderer.world.characters.get(latestEvent.characterId)
-      if (char) {
-        const actionText =
-          action === 'fish'
-            ? '+3 Fish'
-            : action === 'farm'
-              ? 'Planted!'
-              : action === 'trade_merchant'
-                ? 'Trading...'
-                : action === 'trade_peer'
-                  ? 'Negotiating...'
-                  : action
-        renderer.world.showFloatingText(char.col, char.row, actionText, 0xffee44)
+      // Variant A: per-step trade sub-action (queued so it runs after labor walk).
+      const subAction = decision.subAction as string | undefined
+      if (subAction === 'trade_merchant') {
+        world.enqueueAIAnimation(charId, async () => {
+          await world.animateAIMove(charId, 'trade_merchant')
+          const c = world.characters.get(charId)
+          if (c) world.showFloatingText(c.col, c.row, 'Trading...', 0xffee44)
+        })
+        return
+      }
+      if (subAction === 'trade_peer') {
+        const targetId = decision.target as string | null
+        world.enqueueAIAnimation(charId, async () => {
+          const targetChar = targetId ? world.characters.get(targetId) : null
+          if (targetChar) {
+            await world.animateAIMove(charId, 'trade_peer', {
+              col: targetChar.col,
+              row: targetChar.row,
+            })
+          }
+          const c = world.characters.get(charId)
+          if (c) world.showFloatingText(c.col, c.row, 'Negotiating...', 0xffaa44)
+        })
+        return
+      }
+
+      // Variant B: full decision with labor — walk to the labor target and
+      // emit the +N reward floating text only after arrival.
+      const labor = decision.labor as Record<string, unknown> | undefined
+      if (labor) {
+        const action = (labor.labor as string) || 'fish'
+        world.enqueueAIAnimation(charId, async () => {
+          await world.animateAIMove(charId, action)
+          const c = world.characters.get(charId)
+          if (!c) return
+          const text = action === 'fish' ? '+3 Fish' : action === 'farm' ? 'Planted!' : action
+          world.showFloatingText(c.col, c.row, text, 0xffee44)
+        })
       }
     }
   },

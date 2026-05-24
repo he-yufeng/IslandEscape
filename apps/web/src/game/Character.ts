@@ -35,6 +35,12 @@ export class Character {
   public col: number
   public row: number
 
+  /** Spawn / "home" tile this character drifts back toward when idle. */
+  public homeCol: number
+  public homeRow: number
+  /** Seconds remaining before this character should attempt the next idle wander step. */
+  public wanderCooldown: number = 0
+
   // Pixel position (for smooth interpolation)
   public pixelX: number
   public pixelY: number
@@ -54,6 +60,12 @@ export class Character {
   private bobOffset = 0
   private facing: 'down' | 'up' | 'left' | 'right' = 'down'
   private walkFrame = 0
+  /** Per-character random phase so idle motions don't sync up across NPCs. */
+  private idlePhase = Math.random() * Math.PI * 2
+  /** Time accumulator (seconds) for idle animation. */
+  private idleTimer = 0
+  /** Horizontal sway offset applied during idle (visual-only, doesn't affect grid). */
+  private idleSwayX = 0
 
   public get moving(): boolean {
     return this.isMoving
@@ -68,6 +80,10 @@ export class Character {
     this.name = config.name
     this.col = config.col
     this.row = config.row
+    this.homeCol = config.col
+    this.homeRow = config.row
+    // Stagger first wander so the four NPCs don't all step at the same instant.
+    this.wanderCooldown = 1.5 + Math.random() * 2.5
     this.pixelX = config.col * TILE_SIZE
     this.pixelY = config.row * TILE_SIZE
     this.targetPixelX = this.pixelX
@@ -111,22 +127,26 @@ export class Character {
     g.clear()
 
     const shirtColor = SHIRT_COLORS[this.id] ?? 0xaaaaaa
-    const cx = TILE_SIZE / 2  // center x
+    const cx = TILE_SIZE / 2 + this.idleSwayX  // center x with idle horizontal sway
     const bob = Math.round(this.bobOffset)
 
-    // Shadow
-    g.ellipse(cx, TILE_SIZE - 2, 8, 3).fill({ color: 0x000000, alpha: 0.2 })
+    // Shadow (anchored to ground — does not sway with the body)
+    g.ellipse(TILE_SIZE / 2, TILE_SIZE - 2, 8, 3).fill({ color: 0x000000, alpha: 0.2 })
 
-    // Legs
-    const legOffset = this.isMoving ? Math.sin(this.walkFrame * 8) * 2 : 0
+    // Legs — slight idle shuffle when standing still (visible weight shift)
+    const legWalkOffset = this.isMoving ? Math.sin(this.walkFrame * 8) * 2 : 0
+    const legIdleOffset = this.isMoving ? 0 : Math.sin(this.idleTimer * 1.6 + this.idlePhase) * 1.6
+    const legOffset = legWalkOffset + legIdleOffset
     g.rect(cx - 5, 22 + bob, 4, 8 + legOffset).fill(PANTS_COLOR)
     g.rect(cx + 1, 22 + bob, 4, 8 - legOffset).fill(PANTS_COLOR)
 
     // Body (shirt)
     g.roundRect(cx - 7, 12 + bob, 14, 12, 2).fill(shirtColor)
 
-    // Arms
-    const armSwing = this.isMoving ? Math.sin(this.walkFrame * 8) * 3 : 0
+    // Arms — gentle sway when idle, full swing when walking
+    const armWalk = this.isMoving ? Math.sin(this.walkFrame * 8) * 3 : 0
+    const armIdle = this.isMoving ? 0 : Math.sin(this.idleTimer * 1.2 + this.idlePhase) * 2.0
+    const armSwing = armWalk + armIdle
     g.rect(cx - 10, 14 + bob + armSwing, 4, 8).fill(shirtColor)
     g.rect(cx + 6, 14 + bob - armSwing, 4, 8).fill(shirtColor)
     // Hands
@@ -257,13 +277,15 @@ export class Character {
       return
     }
 
+    const ds = delta * 0.016
+
     if (this.isMoving) {
-      this.walkFrame += delta * 0.016
+      this.walkFrame += ds
 
       const dx = this.targetPixelX - this.pixelX
       const dy = this.targetPixelY - this.pixelY
       const dist = Math.sqrt(dx * dx + dy * dy)
-      const step = this.moveSpeed * delta * 0.016
+      const step = this.moveSpeed * ds
 
       if (dist <= step) {
         // Arrived
@@ -272,6 +294,7 @@ export class Character {
         this.isMoving = false
         this.walkFrame = 0
         this.bobOffset = 0
+        this.idleSwayX = 0
 
         if (this._moveResolve) {
           const resolve = this._moveResolve
@@ -283,10 +306,18 @@ export class Character {
         this.pixelY += (dy / dist) * step
         // Walking bob
         this.bobOffset = Math.sin(this.walkFrame * 10) * 1.5
+        this.idleSwayX = 0
       }
-
-      this.drawCharacter()
+    } else {
+      // Idle: visible breathing + horizontal weight-shift. Different phase per
+      // character so the NPCs don't all bob in unison. Amplitudes tuned to be
+      // clearly readable but not seasick.
+      this.idleTimer += ds
+      this.bobOffset = Math.sin(this.idleTimer * 1.6 + this.idlePhase) * 1.6
+      this.idleSwayX = Math.sin(this.idleTimer * 1.1 + this.idlePhase * 0.7) * 1.8
     }
+
+    this.drawCharacter()
 
     this.container.x = this.pixelX
     this.container.y = this.pixelY

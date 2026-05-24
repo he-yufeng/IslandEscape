@@ -59,22 +59,22 @@ Each turn you MUST do two things in order:
 
 {PERSONALITY}
 
-Respond with a JSON object:
+Respond with a JSON object. Keep every "reasoning" field to ONE short sentence (max ~15 words) — long reasoning will get truncated and break the response.
 {
   "labor": {
     "labor": "fish" or "farm",
-    "reasoning": "why you chose this"
+    "reasoning": "short reason"
   },
   "trades": [
     {
       "action": "trade_merchant" or "trade_peer" or "skip",
       "merchantSell": { "fish": 0, "wheat": 0 },
       "tradeTarget": "character_id",
-      "reasoning": "why"
+      "reasoning": "short reason"
     },
     {
       "action": "skip",
-      "reasoning": "saving slot or no good trades available"
+      "reasoning": "short reason"
     }
   ]
 }
@@ -86,7 +86,8 @@ Rules:
 - Don't sell so much that you'll die tonight (keep at least 2 fish and 2 wheat after all trades).
 - Consider friendship, market prices, who has what you need.
 - If someone is close to escaping (high coins), you might want to avoid helping them.
-- High friendship means better deals and more trust.`
+- High friendship means better deals and more trust.
+- Keep reasoning terse — one short sentence each, no flowery prose.`
 
 export async function getAIDecision(
   state: GameState,

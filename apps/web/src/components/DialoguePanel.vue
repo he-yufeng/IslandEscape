@@ -50,8 +50,16 @@ const messageCount = computed(() => messages.value.length)
 const maxExchanges = GAME_CONFIG.MAX_NEGOTIATION_EXCHANGES
 const showThinking = computed(() => game.negotiationPending === props.target)
 
+// IMPORTANT: gate on `negotiationPending` (the chat round-trip flag) rather
+// than the global `isLoading`. When an NPC initiates a trade DURING the AI
+// turn, the player's earlier end_turn HTTP request is still in flight, so
+// `isLoading` is permanently true until the AI loop finishes — which can't
+// finish until the player responds. Using isLoading here would deadlock the
+// dialog panel (this is exactly the "buttons disabled / can't reply" bug).
+const chatBusy = computed(() => game.negotiationPending === props.target)
+
 const canSend = computed(() => {
-  return messageCount.value < maxExchanges * 2 && !game.isLoading
+  return messageCount.value < maxExchanges * 2 && !chatBusy.value
 })
 
 /**
@@ -70,7 +78,7 @@ const acceptableNpcProposal = computed(() => {
   return null
 })
 
-const canAccept = computed(() => acceptableNpcProposal.value !== null && !game.isLoading)
+const canAccept = computed(() => acceptableNpcProposal.value !== null && !chatBusy.value)
 
 // Auto-scroll on new messages or when thinking indicator appears
 watch(

@@ -235,6 +235,12 @@ export const GameSSEEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ai_thinking'), characterId: CharacterIdSchema }),
   z.object({ type: z.literal('ai_decision'), characterId: CharacterIdSchema, decision: z.unknown() }),
   z.object({ type: z.literal('negotiation'), message: NegotiationMessageSchema }),
+  z.object({
+    type: z.literal('npc_initiates_negotiation'),
+    initiatorId: CharacterIdSchema,
+    conversationId: z.string(),
+    message: NegotiationMessageSchema,
+  }),
   z.object({ type: z.literal('trade_result'), success: z.boolean(), from: CharacterIdSchema, to: CharacterIdSchema, summary: z.string() }),
   z.object({ type: z.literal('settlement'), results: z.array(z.string()) }),
   z.object({ type: z.literal('elimination'), characterId: CharacterIdSchema }),

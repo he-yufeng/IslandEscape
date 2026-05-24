@@ -277,6 +277,26 @@ export const useGameStore = defineStore('game', () => {
         // to prevent double-display. SSE negotiation events for AI-to-AI talks
         // only show in EventLog (via events array), not in DialoguePanel.
         break
+      case 'npc_initiates_negotiation': {
+        // An NPC opened a chat with the player. Surface it as an active
+        // negotiation so the existing DialoguePanel pops up and the player
+        // can respond via the normal negotiate_reply flow.
+        const ev = event as { initiatorId: CharacterId; conversationId: string; message: NegotiationMessage }
+        // Skip if the player is already mid-negotiation with someone — server
+        // prevents creating a new one anyway.
+        if (activeNegotiation.value && activeNegotiation.value.target !== ev.initiatorId) break
+        activeNegotiation.value = {
+          conversationId: ev.conversationId,
+          target: ev.initiatorId,
+          messages: [ev.message],
+          isOpen: true,
+          isNew: false,
+        }
+        dialogueTarget.value = ev.initiatorId
+        showDialoguePanel.value = true
+        thinkingCharacter.value = null
+        break
+      }
       case 'game_over':
         thinkingCharacter.value = null
         break

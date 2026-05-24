@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type {
   GameState,
   CharacterId,
@@ -7,6 +8,7 @@ import type {
 import { GAME_CONFIG } from '@game/shared'
 import { getAIDecision } from './decision-agent'
 import { getNegotiationReply, getAITradeInitiation } from './negotiation-agent'
+import { negotiations, sessions } from '../state'
 import {
   applyAILabor,
   applyAITrade,
@@ -17,9 +19,19 @@ import {
 
 export type SSEBroadcaster = (event: GameSSEEvent) => void
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** How long to pause the AI turn waiting for the player to resolve an NPC-initiated trade. */
+const PLAYER_RESPONSE_TIMEOUT_MS = 60_000
+/** Polling interval while waiting; the runtime is idle on the JS thread anyway. */
+const PLAYER_RESPONSE_POLL_MS = 500
+
 export async function runAITurns(
   state: GameState,
   broadcast: SSEBroadcaster,
+  gameId: string,
 ): Promise<GameState> {
   let current = state
 
@@ -37,8 +49,14 @@ export async function runAITurns(
       // Get full decision: labor + trades
       const decision = await getAIDecision(current, charId)
 
+      // Tell the client what this AI is about to do — drives the
+      // walk-to-target animation in GameCanvas.vue.
+      broadcast({ type: 'ai_decision', characterId: charId, decision })
+
       // Step 1: Labor (mandatory)
       broadcast({ type: 'log', message: `${charId} chose to ${decision.labor.labor}. (${decision.labor.reasoning})` })
+      // Give the client a beat to start the walk animation before HUD numbers change.
+      await delay(400)
       current = applyAILabor(current, charId, decision.labor.labor)
       broadcast({ type: 'state_update', state: current })
 
@@ -49,6 +67,15 @@ export async function runAITurns(
         const char = current.characters[charId]
         if (!char || char.tradeSlots <= 0) break
 
+        // Re-broadcast a per-step decision so the client can animate the AI
+        // walking to the trade target (dock for merchant, peer's tile for peer).
+        broadcast({
+          type: 'ai_decision',
+          characterId: charId,
+          decision: { subAction: trade.action, target: trade.tradeTarget ?? null },
+        })
+        await delay(300)
+
         if (trade.action === 'trade_merchant' && trade.merchantSell) {
           broadcast({ type: 'log', message: `${charId} trades with merchant. (${trade.reasoning})` })
           current = applyAITrade(current, charId, trade)
@@ -56,7 +83,15 @@ export async function runAITurns(
 
         if (trade.action === 'trade_peer' && trade.tradeTarget) {
           broadcast({ type: 'log', message: `${charId} wants to trade with ${trade.tradeTarget}. (${trade.reasoning})` })
-          current = await runAINegotiation(current, charId, trade.tradeTarget, broadcast)
+          if (trade.tradeTarget === 'player') {
+            // Special-case: NPC initiates with the human player. Don't run the
+            // LLM-vs-LLM auto-loop (it would call getPersonality('player') and
+            // throw). Instead, register the conversation and let the player
+            // respond via the normal negotiate_reply API.
+            current = await initiatePlayerNegotiation(current, charId, broadcast, gameId)
+          } else {
+            current = await runAINegotiation(current, charId, trade.tradeTarget, broadcast)
+          }
           // Deduct trade slot
           current = applyAITrade(current, charId, trade)
         }
@@ -166,4 +201,93 @@ async function runAINegotiation(
 
   broadcast({ type: 'trade_result', success: false, from: initiator, to: target, summary: `Negotiation between ${initiator} and ${target} failed.` })
   return current
+}
+
+/**
+ * NPC initiates a negotiation with the human player.
+ *
+ * Generates an opening proposal, registers the conversation in the shared
+ * `negotiations` map, broadcasts an SSE event so the client can pop the
+ * dialogue panel, then **blocks the AI turn loop** until the player resolves
+ * (accept / reject) or the wait times out. After resolution we re-read the
+ * authoritative state from the session so any player-side mutations
+ * (executePeerTrade, etc.) are picked up by the rest of `runAITurns`.
+ */
+async function initiatePlayerNegotiation(
+  current: GameState,
+  initiator: CharacterId,
+  broadcast: SSEBroadcaster,
+  gameId: string,
+): Promise<GameState> {
+  // Skip if a negotiation is already in flight for this game — we don't want
+  // to clobber a player-initiated chat with another NPC.
+  if (negotiations.has(gameId)) return current
+
+  const player = current.characters.player
+  if (!player || !player.alive || player.escaped) return current
+
+  // Don't pester the player with the same NPC twice in one day.
+  if (current.playerNpcTradedToday.includes(initiator)) return current
+
+  let opening
+  try {
+    opening = await getAITradeInitiation(current, initiator, 'player')
+  } catch (err) {
+    console.error(`[ai-init-player] ${initiator} failed to generate opening:`, err)
+    return current
+  }
+
+  const proposal = opening.offer && opening.request
+    ? { from: initiator, to: 'player' as CharacterId, offer: opening.offer, request: opening.request }
+    : undefined
+
+  const openingMsg: NegotiationMessage = {
+    speaker: initiator,
+    text: opening.text,
+    proposal,
+  }
+
+  const conversationId = randomUUID()
+  negotiations.set(gameId, {
+    conversationId,
+    target: initiator,
+    messages: [openingMsg],
+  })
+
+  broadcast({
+    type: 'npc_initiates_negotiation',
+    initiatorId: initiator,
+    conversationId,
+    message: openingMsg,
+  })
+  broadcast({ type: 'negotiation', message: openingMsg })
+  broadcast({
+    type: 'log',
+    message: `${initiator} is waiting for your response...`,
+  })
+
+  // === Block until the player resolves or we time out ===
+  const start = Date.now()
+  while (negotiations.has(gameId)) {
+    if (Date.now() - start > PLAYER_RESPONSE_TIMEOUT_MS) {
+      // Player ignored the offer — NPC walks away. Clean up state and notify.
+      negotiations.delete(gameId)
+      broadcast({
+        type: 'trade_result',
+        success: false,
+        from: initiator,
+        to: 'player',
+        summary: `${initiator} got tired of waiting and walked away.`,
+      })
+      broadcast({ type: 'log', message: `${initiator} walked away (timed out).` })
+      break
+    }
+    await delay(PLAYER_RESPONSE_POLL_MS)
+  }
+
+  // Pick up any state mutations the player's accept/reject made on session.state
+  // — without this, the next runAITurns iteration would clobber the player's
+  // trade with our stale local `current`.
+  const session = sessions.get(gameId)
+  return session?.state ?? current
 }

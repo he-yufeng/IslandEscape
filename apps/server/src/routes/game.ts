@@ -5,18 +5,10 @@ import { PlayerActionSchema, type GameState, type CharacterId, type NegotiationM
 import { createNewGame, startDay, applyPlayerAction, executePeerTrade } from '../engine/game'
 import { runAITurns, type SSEBroadcaster } from '../agents/runtime'
 import { getNegotiationReply } from '../agents/negotiation-agent'
-import { sessions, broadcastSSE } from '../state'
+import { sessions, broadcastSSE, negotiations, type ActiveNegotiation } from '../state'
 import { db } from '../db/client'
 import { games } from '../db/schema'
 import { eq } from 'drizzle-orm'
-
-// Active negotiations: gameId -> negotiation state
-interface ActiveNegotiation {
-  conversationId: string
-  target: CharacterId
-  messages: NegotiationMessage[]
-}
-const negotiations = new Map<string, ActiveNegotiation>()
 
 async function persistGame(gameId: string, state: GameState): Promise<void> {
   const now = new Date().toISOString()
@@ -383,7 +375,7 @@ const routes: FastifyPluginAsync = async (fastify) => {
 
         const broadcast: SSEBroadcaster = (event) => broadcastSSE(id, event)
         try {
-          const newState = await runAITurns(session.state, broadcast)
+          const newState = await runAITurns(session.state, broadcast, id)
           session.state = newState
           await persistGame(id, newState)
         } catch (err) {

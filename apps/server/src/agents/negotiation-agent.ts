@@ -2,6 +2,7 @@ import {
   type GameState,
   type CharacterId,
   type NegotiationMessage,
+  type TradeOffer,
   friendshipKey,
   GAME_CONFIG,
 } from '@game/shared'
@@ -10,10 +11,31 @@ import { chatJSON } from './llm'
 
 interface NegotiationReply {
   text: string
-  offer?: { fish: number; wheat: number; coins: number }
-  request?: { fish: number; wheat: number; coins: number }
+  offer?: TradeOffer
+  request?: TradeOffer
   accept?: boolean
   reject?: boolean
+}
+
+/**
+ * Coerce arbitrary LLM output (which may have null, undefined, strings, or
+ * missing fields) into a clean, non-negative integer TradeOffer. Without this
+ * we end up doing arithmetic like `5 - null` = NaN which then JSON-serializes
+ * to `null`, propagating bogus state to the client and breaking elimination
+ * checks (NaN comparisons are always false, so eliminated NPCs stay "alive").
+ */
+function sanitizeOffer(raw: unknown): TradeOffer {
+  const r = (raw ?? {}) as Record<string, unknown>
+  const num = (v: unknown): number => {
+    const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0
+  }
+  return { fish: num(r.fish), wheat: num(r.wheat), coins: num(r.coins) }
+}
+
+/** Has the LLM put any actual numbers on the table? Used to decide whether a reply is structured. */
+function offerIsMeaningful(o: TradeOffer): boolean {
+  return o.fish > 0 || o.wheat > 0 || o.coins > 0
 }
 
 function buildNegotiationContext(
@@ -124,10 +146,14 @@ export async function getNegotiationReply(
     // Defensive: if the LLM both "accepts" and provides a counter that mirrors
     // the partner's last proposal, treat it as an accept (caller will execute
     // the partner's structured terms, not the mirrored offer).
+    const offer = raw.offer !== undefined ? sanitizeOffer(raw.offer) : undefined
+    const request = raw.request !== undefined ? sanitizeOffer(raw.request) : undefined
     return {
       text: raw.text || `${personality.name} thinks about it...`,
-      offer: raw.offer,
-      request: raw.request,
+      // Only attach offer/request if at least one party puts something on the
+      // table — prevents zero-zero "ghost" proposals from cluttering the chat.
+      offer: offer && (offerIsMeaningful(offer) || (request && offerIsMeaningful(request))) ? offer : undefined,
+      request: request && (offerIsMeaningful(request) || (offer && offerIsMeaningful(offer))) ? request : undefined,
       accept: raw.accept === true,
       reject: raw.reject === true,
     }
@@ -152,10 +178,12 @@ export async function getAITradeInitiation(
 
   try {
     const raw = await chatJSON<NegotiationReply>(systemPrompt, initPrompt)
+    const offer = sanitizeOffer(raw.offer)
+    const request = sanitizeOffer(raw.request)
     return {
       text: raw.text || `${personality.name} wants to trade with you.`,
-      offer: raw.offer || { fish: 0, wheat: 0, coins: 0 },
-      request: raw.request || { fish: 0, wheat: 0, coins: 0 },
+      offer,
+      request,
       accept: false,
       reject: false,
     }
