@@ -120,6 +120,13 @@ const merchantWheat = computed(() => game.merchantPrices.wheatPrice)
     <div v-else-if="game.playerEscaped" class="hud-section">
       <span class="hud-badge bg-emerald-700">ESCAPED!</span>
     </div>
+
+    <!-- Error message -->
+    <Transition name="fade">
+      <div v-if="game.errorMessage" class="hud-section">
+        <span class="hud-badge bg-red-600">{{ game.errorMessage }}</span>
+      </div>
+    </Transition>
   </div>
 </template>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import { useGameStore } from '@/stores/game'
 import GameCanvas from '@/components/GameCanvas.vue'
 import HUD from '@/components/HUD.vue'
@@ -9,6 +9,8 @@ import ActionMenu from '@/components/ActionMenu.vue'
 import EventLog from '@/components/EventLog.vue'
 import CardPicker from '@/components/CardPicker.vue'
 import type { InteractionType } from '@/game/GameWorld'
+
+const InteractionPreview3D = defineAsyncComponent(() => import('@/components/InteractionPreview3D.vue'))
 
 const game = useGameStore()
 const gameCanvasRef = ref<InstanceType<typeof GameCanvas> | null>(null)
@@ -49,6 +51,8 @@ function closeDialogue() {
 
 async function endTurn() {
   game.closeActionMenu()
+  // Clear any active negotiation before ending turn
+  game.closeNegotiation()
   await game.submitAction({ type: 'end_turn' })
 }
 
@@ -121,6 +125,8 @@ const gameOverMessage = computed(() => {
 
     <!-- Main Game Area -->
     <div class="game-main">
+      <InteractionPreview3D />
+
       <!-- Canvas + Overlays -->
       <div class="canvas-area">
         <!-- PixiJS Canvas -->
@@ -363,6 +369,7 @@ const gameOverMessage = computed(() => {
 
 .canvas-area {
   flex: 1;
+  min-width: 0;
   position: relative;
   display: flex;
   align-items: center;

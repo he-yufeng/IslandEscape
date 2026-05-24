@@ -30,6 +30,7 @@
     "pixi.js": "^8.17.1",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.16",
+    "three": "^0.184.0",
     "vue": "^3.5.30",
     "vue-router": "^5.0.3",
     "zod": "^4.1.12"

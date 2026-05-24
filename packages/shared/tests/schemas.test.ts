@@ -53,6 +53,7 @@ function makeGameState(): GameState {
     winnerId: null,
     aiTurnOrder: ['tom', 'sam', 'lily', 'jack'],
     currentAiIndex: 0,
+    playerNpcTradedToday: [],
     updatedAt: now,
   }
 }

@@ -186,6 +186,8 @@ export const GameStateSchema = z.object({
   aiTurnOrder: z.array(CharacterIdSchema),
   currentAiIndex: z.number().int(),
   dungeonState: DungeonStateSchema.nullable().default(null),
+  /** NPCs the player has traded with today (prevents duplicate trades) */
+  playerNpcTradedToday: z.array(CharacterIdSchema),
   updatedAt: z.string().datetime(),
 })
 export type GameState = z.infer<typeof GameStateSchema>
