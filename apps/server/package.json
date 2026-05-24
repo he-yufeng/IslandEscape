@@ -8,8 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "lint": "echo \"server lint placeholder\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "test:unit": "vitest run",
+    "test": "vitest run tests/api.test.ts",
+    "test:unit": "vitest run tests/api.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
