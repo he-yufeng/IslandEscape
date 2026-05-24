@@ -2,6 +2,7 @@
 
 \usepackage[margin=1in]{geometry}
 \usepackage{booktabs}
+\usepackage{graphicx}
 \usepackage{enumitem}
 \usepackage{hyperref}
 \usepackage{xcolor}
@@ -310,14 +311,56 @@ game pasted on top; it is another way to make an economic decision under risk.
 
 \section{Visual Rendering and Animation}
 
-\noindent\fbox{%
-\parbox{0.95\linewidth}{%
-\textbf{Reserved for Zhiyuan.} This section should describe the final visual
-rendering and animation work: PixiJS world rendering, 3D interaction preview,
-character/scene modeling choices, animation pipeline, camera/framing,
-performance considerations, and screenshots. The rest of this report assumes
-this section will be completed after the final visual pass.
-}}
+The final visual pass keeps the playable island and dungeon in PixiJS, while a
+separate Three.js canvas renders the left-side interaction preview. This hybrid
+approach improves presentation quality without moving tile logic, collision
+checks, phase control, or server-authoritative game state into a 3D scene.
+
+The preview reads the same interaction state as the action menu. It shows a
+default island when no object is nearby, then swaps to procedural low-poly
+models for fishing, farmland, merchant trading, NPC dialogue, and dungeon entry.
+Each model rotates and floats subtly. The Three.js renderer caps device pixel
+ratio, resizes with \texttt{ResizeObserver}, pauses when the document is hidden,
+and disposes old geometry and materials when the active model changes.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[height=0.34\textheight,keepaspectratio]{figures/panel-default-final.png}
+\hspace{1em}
+\includegraphics[height=0.34\textheight,keepaspectratio]{figures/panel-rules-topmost-final.png}
+\caption{Left interaction panel in its default state and with the rules popover
+open. The compact horizontal phase flow leaves more room for the 3D preview and
+state-specific parameters.}
+\end{figure}
+
+The side panel now works as a contextual inspector rather than a decorative
+preview. Fishing, farming, merchant, NPC, and dungeon states expose their
+relevant parameters, such as yield, labor cost, harvest timing, market prices,
+friendship, resources, and combat entry constraints. Longer phase and rules
+descriptions are moved into hover popovers so the default layout stays compact.
+The preview canvas has a 300-pixel minimum width, and popovers use a higher
+stacking order so explanations remain visible above the model and parameter
+grid.
+
+Character labels were moved into a top PixiJS overlay layer rendered after the
+tile, character, and effects layers. The labels use higher-resolution text,
+stronger strokes, extra texture padding, and rounded pixel coordinates. This
+keeps NPC names readable over terrain and animation effects.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.9\linewidth,keepaspectratio]{figures/canvas-names-clarity.png}
+\caption{Main canvas after the label-layer update. NPC names are rendered above
+the world and remain sharp enough to identify characters during negotiation and
+movement.}
+\end{figure}
+
+The dungeon reuses the same PixiJS application but switches from the island
+container to \texttt{DungeonArena}. Its animation layer includes player combat,
+boss states, pooled bullets, minions, XP orbs, hit sparks, damage numbers,
+screen shake, hit-stop, flashes, vignette, and attack telegraphs. Browser
+screenshots and frontend checks confirmed that the PixiJS/Three.js split made
+the interface richer while preserving readable gameplay.
 
 \section{Testing and Validation}
 
