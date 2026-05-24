@@ -397,7 +397,7 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  function pickCard(cardId: string) {
+  function pickCard(_cardId: string) {
     pendingCards.value = []
     showCardPicker.value = false
   }

@@ -3,8 +3,37 @@ import * as THREE from 'three'
 import type { CharacterId } from '@game/shared'
 import type { InteractionType } from '@/game/GameWorld'
 
-type PreviewGroup = any
-type PreviewMesh = any
+type DisposableMaterial = {
+  dispose: () => void
+}
+
+type DisposableGeometry = {
+  dispose: () => void
+}
+
+type PreviewVector3 = {
+  x: number
+  y: number
+  z: number
+  set: (x: number, y: number, z: number) => void
+}
+
+export type PreviewObject3D = {
+  position: PreviewVector3
+  rotation: PreviewVector3
+  traverse: (callback: (node: PreviewNode) => void) => void
+}
+
+type PreviewNode = Partial<PreviewObject3D> & {
+  geometry?: DisposableGeometry
+  material?: DisposableMaterial | DisposableMaterial[]
+}
+
+type PreviewGroup = PreviewObject3D & {
+  add: (object: PreviewObject3D) => void
+}
+
+type PreviewMesh = PreviewObject3D
 
 const WATER_COLOR = 0x1d7ec8
 const WATER_HIGHLIGHT = 0x63c0ff
@@ -432,7 +461,7 @@ function createDungeonPreview() {
   return group
 }
 
-export function createInteractionPreviewObject(interaction: InteractionType) {
+export function createInteractionPreviewObject(interaction: InteractionType): PreviewGroup {
   if (!interaction) return createDefaultPreview()
 
   switch (interaction.kind) {
@@ -449,17 +478,15 @@ export function createInteractionPreviewObject(interaction: InteractionType) {
   }
 }
 
-export function disposeObject3D(root: any) {
-  root.traverse((node: any) => {
-    const mesh = node as any
-    if (mesh.geometry) {
-      mesh.geometry.dispose()
+export function disposeObject3D(root: PreviewObject3D) {
+  root.traverse((node) => {
+    if (node.geometry) {
+      node.geometry.dispose()
     }
 
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    const materials = Array.isArray(node.material) ? node.material : [node.material]
     for (const material of materials) {
-      if (!material) continue
-      material.dispose()
+      material?.dispose()
     }
   })
 }

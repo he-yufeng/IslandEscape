@@ -25,7 +25,7 @@ export function post<T>(path: string, body?: unknown): Promise<T> {
 
 // Typed API calls
 export function createGame() {
-  return post<{ gameId: string; state: GameState }>('/games')
+  return post<{ gameId: string; state: GameState }>('/games', {})
 }
 
 export function getGame(id: string) {

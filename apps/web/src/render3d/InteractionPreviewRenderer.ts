@@ -1,17 +1,28 @@
 import * as THREE from 'three'
 
 import type { InteractionType } from '@/game/GameWorld'
-import { createInteractionPreviewObject, disposeObject3D } from './interactionPreviewModels'
+import { createInteractionPreviewObject, disposeObject3D, type PreviewObject3D } from './interactionPreviewModels'
 import { getInteractionPreviewKey } from './interactionPreviewMeta'
 
+type PreviewRenderer = {
+  outputColorSpace: string
+  domElement: HTMLCanvasElement
+  setClearColor: (color: number, alpha: number) => void
+  setPixelRatio: (ratio: number) => void
+  setSize: (width: number, height: number, updateStyle: boolean) => void
+  setAnimationLoop: (callback: ((timeMs: number) => void) | null) => void
+  render: (scene: unknown, camera: unknown) => void
+  dispose: () => void
+}
+
 export class InteractionPreviewRenderer {
-  private renderer: any = null
+  private renderer: PreviewRenderer | null = null
   private scene = new THREE.Scene()
   private camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100)
   private resizeObserver: ResizeObserver | null = null
   private container: HTMLElement | null = null
   private previewGroup = new THREE.Group()
-  private activeObject: any = null
+  private activeObject: PreviewObject3D | null = null
   private activeKey = ''
   private isRunning = false
   private onVisibilityChange = () => {
@@ -42,18 +53,19 @@ export class InteractionPreviewRenderer {
     if (this.renderer) return
 
     this.container = container
-    this.renderer = new THREE.WebGLRenderer({
+    const renderer: PreviewRenderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
       powerPreference: 'high-performance',
     })
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.setClearColor(0x000000, 0)
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
-    this.renderer.domElement.style.width = '100%'
-    this.renderer.domElement.style.height = '100%'
-    this.renderer.domElement.style.display = 'block'
-    container.appendChild(this.renderer.domElement)
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.setClearColor(0x000000, 0)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    renderer.domElement.style.width = '100%'
+    renderer.domElement.style.height = '100%'
+    renderer.domElement.style.display = 'block'
+    container.appendChild(renderer.domElement)
+    this.renderer = renderer
 
     this.resizeObserver = new ResizeObserver(() => this.resize())
     this.resizeObserver.observe(container)
