@@ -88,6 +88,31 @@ export class DungeonArena extends Container {
   private comboText: Text | null = null
   private comboTextScale = 1
 
+  // ============================================================
+  // Wave / encounter pacing
+  // ============================================================
+
+  /** 'minions_only' = pre-fight, boss is hidden. 'boss_warning' = banner + fade-in.
+   *  'boss_active' = full fight where boss attacks and additional minions trickle in. */
+  private wavePhase: 'minions_only' | 'boss_warning' | 'boss_active' = 'minions_only'
+  private waveTimer = 0
+  private edgeMinionTimer = 0
+  /** Banner Text used for 'A GREAT EVIL APPROACHES' and 'FIGHT!' announcements. */
+  private waveBanner: Text | null = null
+  private waveBannerTimer = 0
+  private waveBannerDuration = 0
+
+  /** Tunables — base values; the actual interval/cap is scaled per day in init(). */
+  private static readonly INTRO_DURATION = 8.0   // seconds of minion-only intro
+  private static readonly WARNING_DURATION = 3.0 // boss fade-in + banner
+  private static readonly INTRO_SPAWN_INTERVAL_BASE = 1.5
+  private static readonly BOSS_SPAWN_INTERVAL_BASE = 4.5
+  private static readonly INTRO_MAX_MINIONS_BASE = 4
+  private static readonly BOSS_MAX_MINIONS_BASE = 5
+
+  /** Day this dungeon run was launched on. Drives all scaling formulas. */
+  private dayLevel = 1
+
   constructor() {
     super()
     this.label = 'dungeon-arena'
@@ -106,7 +131,8 @@ export class DungeonArena extends Container {
     this.eventCallback?.(event)
   }
 
-  init() {
+  init(dayLevel = 1) {
+    this.dayLevel = Math.max(1, Math.floor(dayLevel))
     this.drawArena()
 
     this.player = new PlayerCombat(this)
@@ -148,7 +174,7 @@ export class DungeonArena extends Container {
       })
     }
     this.boss.onSpawnMinion = (x, y) => {
-      this.minions.spawn(x, y)
+      this.minions.spawn(x, y, this.minionHp())
     }
     this.boss.onPhaseEnter = (phase) => {
       // Phase transition — punchy flash + shake + brief hit-stop
@@ -161,6 +187,8 @@ export class DungeonArena extends Container {
     this.orbs = new XPOrbPool(this)
     this.minions = new MinionPool(this)
     this.cardSystem = createCardSystem()
+    // Scale boss difficulty for this run.
+    this.boss.setDifficulty(this.dayLevel)
 
     // Feedback layers (built after main entities so they render on top)
     this.hitSparks = new HitSparkPool(this.effectsLayer)
@@ -178,6 +206,14 @@ export class DungeonArena extends Container {
     this.regenAccumulator = 0
     this.comboCount = 0
     this.comboTimer = 0
+
+    // Wave pacing — boss starts dormant + invisible while a small minion swarm
+    // gives the player a chance to warm up.
+    this.wavePhase = 'minions_only'
+    this.waveTimer = 0
+    this.edgeMinionTimer = 0.5
+    this.boss.setActive(false)
+    this.boss.setAppearAlpha(0)
 
     // Combo display — top-right of the arena
     if (!this.comboText) {
@@ -197,6 +233,29 @@ export class DungeonArena extends Container {
       this.effectsLayer.addChild(this.comboText)
     }
     this.comboText.visible = false
+
+    // Wave banner — center of arena, hidden until announced
+    if (!this.waveBanner) {
+      this.waveBanner = new Text({
+        text: '',
+        style: {
+          fontFamily: 'monospace',
+          fontSize: 28,
+          fontWeight: 'bold',
+          fill: 0xffffff,
+          stroke: { color: 0x000000, width: 5 },
+          align: 'center',
+        },
+      })
+      this.waveBanner.anchor.set(0.5, 0.5)
+      this.waveBanner.x = ARENA_W / 2
+      this.waveBanner.y = ARENA_H / 3
+      this.effectsLayer.addChild(this.waveBanner)
+    }
+    this.waveBanner.visible = false
+
+    // First-second taunt — let the player know combat is starting.
+    this.showWaveBanner('SHADOWS APPROACH', 0xff9090, 1.6)
   }
 
   private drawArena() {
@@ -358,6 +417,7 @@ export class DungeonArena extends Container {
   private bossShoot(angle: number, count: number, speedMul = 1) {
     const spread = 0.3
     const startAngle = angle - (spread * (count - 1)) / 2
+    const dmg = this.boss.scaledBulletDamage()
     for (let i = 0; i < count; i++) {
       const a = startAngle + spread * i
       const speed = (160 + Math.random() * 40) * speedMul
@@ -368,7 +428,7 @@ export class DungeonArena extends Container {
           y: this.boss.y,
           vx: Math.cos(a) * speed,
           vy: Math.sin(a) * speed,
-          damage: GAME_CONFIG.BOSS_BULLET_DAMAGE,
+          damage: dmg,
           size: 8,
           piercing: 0,
           owner: 'boss',
@@ -380,6 +440,7 @@ export class DungeonArena extends Container {
   private bossRingShoot(count: number, speedMul = 1) {
     const speed = (140 + Math.random() * 30) * speedMul
     const offset = Math.random() * Math.PI * 2
+    const dmg = this.boss.scaledBulletDamage()
     for (let i = 0; i < count; i++) {
       const a = offset + (Math.PI * 2 * i) / count
       const bullet = this.bullets.getInactive()
@@ -389,7 +450,7 @@ export class DungeonArena extends Container {
           y: this.boss.y,
           vx: Math.cos(a) * speed,
           vy: Math.sin(a) * speed,
-          damage: GAME_CONFIG.BOSS_BULLET_DAMAGE,
+          damage: dmg,
           size: 8,
           piercing: 0,
           owner: 'boss',
@@ -516,6 +577,11 @@ export class DungeonArena extends Container {
         this.damageNumbers.spawn(this.player.x + 6, this.player.y - 18, `+${heal}`, 0x88ff88, { fontSize: 11 })
       }
     }
+
+    // Wave pacing — drives intro minions, the boss-warning banner, and the
+    // additional periodic minion spawns during the boss fight.
+    this.tickWavePhase(ds)
+    this.tickWaveBanner(ds)
 
     // Combo decay
     if (this.comboCount > 0) {
@@ -661,6 +727,117 @@ export class DungeonArena extends Container {
     }
   }
 
+  // ============================================================
+  // Wave pacing
+  // ============================================================
+
+  /** Day-scaled spawn interval — every day spawns happen meaningfully faster. */
+  private introSpawnInterval(): number {
+    // Day 1 = 1.5 s, every day -0.08 s. Day 14+ floors at 0.5 s.
+    return Math.max(0.5, DungeonArena.INTRO_SPAWN_INTERVAL_BASE - (this.dayLevel - 1) * 0.08)
+  }
+  private bossSpawnInterval(): number {
+    // Day 1 = 4.5 s, every day -0.25 s. Day 14+ floors at 1.2 s.
+    return Math.max(1.2, DungeonArena.BOSS_SPAWN_INTERVAL_BASE - (this.dayLevel - 1) * 0.25)
+  }
+  private introMaxMinions(): number {
+    // +1 every 2 days, capped much higher.
+    return Math.min(10, DungeonArena.INTRO_MAX_MINIONS_BASE + Math.floor((this.dayLevel - 1) / 2))
+  }
+  private bossMaxMinions(): number {
+    // +1 every 2 days, capped much higher.
+    return Math.min(12, DungeonArena.BOSS_MAX_MINIONS_BASE + Math.floor((this.dayLevel - 1) / 2))
+  }
+  private minionHp(): number {
+    // +1 HP per day, capped at 30.
+    return Math.min(30, 4 + this.dayLevel)
+  }
+
+  private tickWavePhase(ds: number) {
+    this.waveTimer += ds
+    if (this.wavePhase === 'minions_only') {
+      this.edgeMinionTimer -= ds
+      if (this.edgeMinionTimer <= 0 && this.minions.activeCount() < this.introMaxMinions()) {
+        this.spawnEdgeMinion()
+        this.edgeMinionTimer = this.introSpawnInterval() + (Math.random() - 0.5) * 0.6
+      }
+      if (this.waveTimer >= DungeonArena.INTRO_DURATION) {
+        this.wavePhase = 'boss_warning'
+        this.waveTimer = 0
+        // Dramatic warning — flash + shake + banner. Hold a beat.
+        this.shaker.trigger(8, 0.6)
+        this.screenFlash.trigger(0.55, 0.45, 0xff5050)
+        this.showWaveBanner('⚠ A GREAT EVIL APPROACHES ⚠', 0xff5050, 2.5)
+      }
+    } else if (this.wavePhase === 'boss_warning') {
+      // Lerp boss alpha 0 → 1 across the warning window for a creepy fade-in.
+      const t = Math.min(1, this.waveTimer / 2.4)
+      this.boss.setAppearAlpha(t)
+      // Keep pumping out a few minions during the warning so the player doesn't catch a breather.
+      this.edgeMinionTimer -= ds
+      if (this.edgeMinionTimer <= 0 && this.minions.activeCount() < this.introMaxMinions()) {
+        this.spawnEdgeMinion()
+        this.edgeMinionTimer = this.introSpawnInterval() * 1.2
+      }
+      if (this.waveTimer >= DungeonArena.WARNING_DURATION) {
+        this.wavePhase = 'boss_active'
+        this.waveTimer = 0
+        this.edgeMinionTimer = this.bossSpawnInterval()
+        this.boss.setActive(true)
+        this.boss.setAppearAlpha(1)
+        // Big arrival flourish.
+        this.shaker.trigger(16, 0.7)
+        this.screenFlash.trigger(0.5, 0.95, 0xffd54a)
+        this.hitStop.trigger(0.18)
+        this.showWaveBanner(`FIGHT! — DAY ${this.dayLevel}`, 0xffd54a, 1.8)
+      }
+    } else {
+      // boss_active — keep an additional minion stream alive so the player is
+      // never just sitting back popping bullets at the boss alone.
+      this.edgeMinionTimer -= ds
+      if (this.edgeMinionTimer <= 0 && this.minions.activeCount() < this.bossMaxMinions()) {
+        this.spawnEdgeMinion()
+        this.edgeMinionTimer = this.bossSpawnInterval() + (Math.random() - 0.5) * 1.5
+      }
+    }
+  }
+
+  /** Spawn a minion at a random arena edge so it visibly walks in. */
+  private spawnEdgeMinion() {
+    const edge = Math.floor(Math.random() * 4)
+    let x = 0, y = 0
+    if (edge === 0) { x = 30 + Math.random() * (ARENA_W - 60); y = 32 }                 // top
+    else if (edge === 1) { x = 30 + Math.random() * (ARENA_W - 60); y = ARENA_H - 32 }  // bottom
+    else if (edge === 2) { x = 32; y = 60 + Math.random() * (ARENA_H - 120) }           // left
+    else { x = ARENA_W - 32; y = 60 + Math.random() * (ARENA_H - 120) }                 // right
+    this.minions.spawn(x, y, this.minionHp())
+  }
+
+  private showWaveBanner(text: string, color: number, duration = 2.0) {
+    if (!this.waveBanner) return
+    this.waveBanner.text = text
+    this.waveBanner.style.fill = color
+    this.waveBanner.visible = true
+    this.waveBannerTimer = duration
+    this.waveBannerDuration = duration
+  }
+
+  private tickWaveBanner(ds: number) {
+    if (!this.waveBanner) return
+    if (this.waveBannerTimer <= 0) {
+      if (this.waveBanner.visible) this.waveBanner.visible = false
+      return
+    }
+    this.waveBannerTimer -= ds
+    const t = this.waveBannerTimer / this.waveBannerDuration   // 1 → 0
+    // Fade in fast, fade out slow.
+    const fade = t > 0.85 ? (1 - t) / 0.15 : Math.min(1, t * 1.6)
+    this.waveBanner.alpha = Math.max(0, fade)
+    // Slow scale pulse for emphasis
+    const pulse = 1 + Math.sin((1 - t) * 14) * 0.06
+    this.waveBanner.scale.set(pulse)
+  }
+
   /** Visible expanding ring at impact point + a brief flash, no entity creation. */
   private spawnExplosion(x: number, y: number, radius: number) {
     const gfx = new Graphics()
@@ -698,9 +875,16 @@ export class DungeonArena extends Container {
         const dx = m.x - b.x
         const dy = m.y - b.y
         if (Math.sqrt(dx * dx + dy * dy) < m.radius + b.size) {
+          const wasAlive = !m.dying
           if (m.takeDamage(b.damage)) {
             this.hitSparks.burst(b.x, b.y, b.vx, b.vy, 0xff80a0, 5)
             this.damageNumbers.spawn(m.x, m.y - 8, String(b.damage), 0xffaa44, { fontSize: 11 })
+            // Killing blow — drop a fat XP orb so clearing minions is rewarding.
+            if (wasAlive && m.dying) {
+              const orb = this.orbs.getInactive()
+              orb?.spawn(m.x, m.y, GAME_CONFIG.XP_PER_ORB)
+              this.shaker.trigger(2, 0.08)
+            }
           }
           if (b.piercing > 0) {
             b.piercing--
@@ -832,6 +1016,10 @@ export class DungeonArena extends Container {
     if (this.comboText) {
       this.comboText.destroy()
       this.comboText = null
+    }
+    if (this.waveBanner) {
+      this.waveBanner.destroy()
+      this.waveBanner = null
     }
     // Clear lingering flash effects
     for (const fx of this.flashEffects) fx.gfx.destroy()

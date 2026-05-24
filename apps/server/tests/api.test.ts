@@ -43,8 +43,8 @@ describe('server api', () => {
     expect(body.state.gameId).toBe(body.gameId)
     expect(body.state.phase).toBe('player_labor')
     expect(body.state.characters.player.resources).toMatchObject({
-      fish: 5,
-      wheat: 5,
+      fish: 6,
+      wheat: 6,
       coins: 0,
     })
   })
@@ -81,7 +81,7 @@ describe('server api', () => {
     expect(res.statusCode).toBe(200)
     const { state } = res.json<StateResponse>()
     expect(state.phase).toBe('player_trade')
-    expect(state.characters.player.resources.fish).toBe(8)
+    expect(state.characters.player.resources.fish).toBe(9)
   })
 
   it('rejects invalid player actions', async () => {

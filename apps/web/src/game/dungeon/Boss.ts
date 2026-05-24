@@ -4,16 +4,16 @@ import { GAME_CONFIG } from '@game/shared'
 const ARENA_W = 640
 const ARENA_H = 480
 const BOSS_RADIUS = 26
-const BOSS_SPEED = 80
-const SHOOT_COOLDOWN = 1.6
-const CHARGE_COOLDOWN = 4.0
-const RING_COOLDOWN = 6.0
-const SUMMON_COOLDOWN = 8.0
-const CHARGE_SPEED = 280
-const CHARGE_DURATION = 0.8
+const BOSS_SPEED = 90
+const SHOOT_COOLDOWN = 1.4
+const CHARGE_COOLDOWN = 3.5
+const RING_COOLDOWN = 5.0
+const SUMMON_COOLDOWN = 6.5
+const CHARGE_SPEED = 290
+const CHARGE_DURATION = 0.85
 const WINDUP_DURATION = 0.5
-const STUN_DURATION = 1.0
-const SUMMON_WINDUP = 0.6
+const STUN_DURATION = 0.85
+const SUMMON_WINDUP = 0.55
 const HIT_FLASH_DURATION = 0.12
 const DEATH_DURATION = 0.9
 
@@ -67,6 +67,13 @@ export class Boss {
   private lightningSpawnTimer = 0
   /** Fades 0→1 each time a phase boundary is crossed; used for entry pulse. */
   private phaseEntryFlash = 0
+  /** When false, boss skips its state machine and ignores damage — used during the
+   *  pre-fight wave so the player has time to clear minions before the fight. */
+  private active = true
+  /** 0–1 visibility scalar driven from outside for fade-in during the warning. */
+  private appearAlpha = 1
+  /** In-game day this dungeon run was launched on. Drives HP / damage / cooldown scaling. */
+  private difficultyDay = 1
 
   // Callbacks
   public onShoot: ((angle: number, count: number, speedMul: number) => void) | null = null
@@ -91,6 +98,7 @@ export class Boss {
   }
 
   takeDamage(amount: number) {
+    if (!this.active) return
     if (this.state === 'dying' || this.state === 'dead') return
     this.hp = Math.max(0, this.hp - amount)
     this.eyeGlow = 0.4
@@ -115,6 +123,57 @@ export class Boss {
       this.stateTimer = 0
       this.deathTimer = 0
     }
+  }
+
+  /** Externally toggle the boss between dormant (waiting in shadows) and combat. */
+  setActive(active: boolean) {
+    this.active = active
+  }
+
+  /** Drives the dramatic fade-in during the boss-warning phase. 0 = invisible. */
+  setAppearAlpha(a: number) {
+    this.appearAlpha = Math.max(0, Math.min(1, a))
+    this.gfx.alpha = this.appearAlpha
+    this.auraGfx.alpha = this.appearAlpha
+  }
+
+  isActive(): boolean { return this.active }
+
+  /**
+   * Re-tune HP / damage / attack speed based on which in-game day the dungeon was
+   * launched on. Day 1 is the baseline; every day after gets strictly harder
+   * along multiple axes.
+   *
+   *   Day 1  → HP 150, bullet 5, charge 6, ~1.4 s shoot
+   *   Day 5  → HP 350, bullet 9, charge 10, ~24 % faster
+   *   Day 10 → HP 600, bullet 14, charge 15, ~54 % faster
+   *   Day 20 → HP 1100, bullet 20 cap, charge 25 cap, 55 % faster cap
+   */
+  setDifficulty(day: number) {
+    this.difficultyDay = Math.max(1, day)
+    // +50 HP per day, no cap — boss meaningfully tanky on later runs.
+    this.maxHp = GAME_CONFIG.BOSS_MAX_HP + (this.difficultyDay - 1) * 50
+    this.hp = this.maxHp
+  }
+
+  getDifficultyDay(): number { return this.difficultyDay }
+
+  /** Per-day cooldown multiplier (lower = faster). Used inside the state machine. */
+  private cdMultiplier(): number {
+    // Each day shaves another 6 % off all cooldowns; floor at day-11 worth.
+    return Math.max(0.45, 1.0 - (this.difficultyDay - 1) * 0.06)
+  }
+
+  /** Bullet damage the boss should emit per shot, scaled by day. */
+  scaledBulletDamage(): number {
+    // +1 per day, hard cap at 20.
+    return Math.min(20, GAME_CONFIG.BOSS_BULLET_DAMAGE + (this.difficultyDay - 1))
+  }
+
+  /** Charge contact damage scaled by day (heavier hits later in the run). */
+  scaledChargeDamage(): number {
+    // +1 per day, hard cap at 25.
+    return Math.min(25, GAME_CONFIG.BOSS_CHARGE_DAMAGE + (this.difficultyDay - 1))
   }
 
   update(dt: number, playerX: number, playerY: number) {
@@ -154,7 +213,13 @@ export class Boss {
     }
     if (this.state === 'dead') return
 
-    const cooldownMul = this.phase3 ? 0.4 : (this.phase2 ? 0.6 : 1.0)
+    // Dormant boss — animate but don't act / collide. Caller controls fade-in.
+    if (!this.active) {
+      this.draw()
+      return
+    }
+
+    const cooldownMul = (this.phase3 ? 0.4 : (this.phase2 ? 0.6 : 1.0)) * this.cdMultiplier()
 
     switch (this.state) {
       case 'idle':
@@ -202,15 +267,15 @@ export class Boss {
           } else if (this.nextWindupTrigger === 'ring') {
             this.state = 'ring_shooting'
             this.stateTimer = 0
-            const ringCount = this.phase3 ? 12 : 8
-            const ringSpeedMul = this.phase3 ? 1.2 : 1.0
+            const ringCount = this.phase3 ? 16 : 10
+            const ringSpeedMul = this.phase3 ? 1.3 : 1.0
             this.onRingShoot?.(ringCount, ringSpeedMul)
           } else {
             this.state = 'shooting'
             this.stateTimer = 0
             const angle = Math.atan2(playerY - this.y, playerX - this.x)
-            const count = this.phase3 ? 7 : (this.phase2 ? 5 : 3)
-            const speedMul = this.phase3 ? 1.3 : 1.0
+            const count = this.phase3 ? 8 : (this.phase2 ? 6 : 4)
+            const speedMul = this.phase3 ? 1.3 : 1.05
             this.onShoot?.(angle, count, speedMul)
           }
           this.nextWindupTrigger = null
@@ -250,10 +315,10 @@ export class Boss {
       case 'summoning':
         if (this.stateTimer >= SUMMON_WINDUP) {
           this.onSummon?.(this.pendingSummonX, this.pendingSummonY)
-          // Phase 2 spawns 1 shadow imp; phase 3 spawns 2 — stays threatening
-          // without flooding the arena.
+          // Phase 2 spawns 2 imps; phase 3 spawns 3. Stays threatening without
+          // overwhelming the arena thanks to the pool cap on the consumer side.
           if (this.onSpawnMinion) {
-            const count = this.phase3 ? 2 : 1
+            const count = this.phase3 ? 3 : 2
             for (let i = 0; i < count; i++) {
               const a = Math.random() * Math.PI * 2
               const r = BOSS_RADIUS + 6
@@ -578,7 +643,7 @@ export class Boss {
   isPhase2(): boolean { return this.phase2 }
   isDying(): boolean { return this.state === 'dying' }
   isDead(): boolean { return this.state === 'dead' }
-  getChargeDamage(): number { return GAME_CONFIG.BOSS_CHARGE_DAMAGE }
+  getChargeDamage(): number { return this.scaledChargeDamage() }
 
   destroy() {
     this.gfx.destroy()

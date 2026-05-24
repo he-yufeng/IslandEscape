@@ -51,7 +51,7 @@ export const useGameStore = defineStore('game', () => {
   const dungeonMode = ref(false)
   const showCardPicker = ref(false)
   const pendingCards = ref<Array<{ id: string; name: string; description: string; icon: string }>>([])
-  const dungeonStats = ref({ hp: 15, maxHp: 15, bossHp: 90, bossMaxHp: 90, xp: 0, xpNext: 30 })
+  const dungeonStats = ref({ hp: 15, maxHp: 15, bossHp: 120, bossMaxHp: 120, xp: 0, xpNext: 30 })
   const dungeonResult = ref<{ win: boolean; damageDealt: number; damageTaken: number; cardsCollected: number } | null>(null)
 
   // ---- SSE management ----
@@ -411,7 +411,7 @@ export const useGameStore = defineStore('game', () => {
       cardsCollected: dungeonResult.value?.cardsCollected ?? 0,
     }
     dungeonResult.value = null
-    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 90, bossMaxHp: 90, xp: 0, xpNext: 30 }
+    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 120, bossMaxHp: 120, xp: 0, xpNext: 30 }
     await submitAction({ type: 'dungeon_result', result })
     // dungeonMode will be set to false by the submitAction handler when state.dungeonState becomes null
   }
@@ -419,7 +419,7 @@ export const useGameStore = defineStore('game', () => {
   async function leaveDungeon() {
     if (!gameId.value) return
     dungeonResult.value = null
-    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 90, bossMaxHp: 90, xp: 0, xpNext: 30 }
+    dungeonStats.value = { hp: 15, maxHp: 15, bossHp: 120, bossMaxHp: 120, xp: 0, xpNext: 30 }
     await submitAction({ type: 'leave_dungeon' })
     // dungeonMode will be set to false by the submitAction handler
   }

@@ -59,15 +59,23 @@ function generateMerchantPrices(): MerchantPrices {
   }
 }
 
-/** Roll a fresh daily event. ~40 % of days have a non-trivial twist. */
+/**
+ * Roll a fresh daily event. Roughly a third of days have a non-trivial twist.
+ * Calm days dominate the early game so new players have time to learn the
+ * basics; drought (the most punishing event) is suppressed for the first
+ * few days because new players don't yet have wheat buffers.
+ */
 function rollDailyEvent(day: number): DailyEvent {
-  // Day 1 is always calm so first-time players can learn the basics.
-  if (day <= 1) return 'none'
+  // Day 1-2 are always calm so first-time players can find their feet.
+  if (day <= 2) return 'none'
   const r = Math.random()
-  if (r < 0.60) return 'none'
-  if (r < 0.70) return 'storm'
-  if (r < 0.80) return 'festival'
-  if (r < 0.90) return 'lucky_catch'
+  if (r < 0.65) return 'none'
+  if (r < 0.74) return 'storm'
+  if (r < 0.84) return 'festival'
+  if (r < 0.94) return 'lucky_catch'
+  // Drought is the deadliest event — only allow it once players have a couple
+  // of harvest cycles under their belt (Day 4+).
+  if (day < 4) return 'lucky_catch'
   return 'drought'
 }
 
@@ -395,21 +403,28 @@ export function resolveDungeon(state: GameState, result: DungeonResult): GameSta
   }
 
   if (result.win) {
+    // Scale coin reward by day so later, harder runs feel worth it.
+    // Day 1 → 20 / Day 5 → 36 / Day 10 → 56 / capped at 80.
+    const coinReward = Math.min(80, GAME_CONFIG.DUNGEON_COIN_REWARD + Math.max(0, state.day - 1) * 4)
     const updatedPlayer = {
       ...player,
       resources: {
         ...player.resources,
-        coins: player.resources.coins + GAME_CONFIG.DUNGEON_COIN_REWARD,
+        coins: player.resources.coins + coinReward,
       },
     }
     newState = {
       ...newState,
       characters: { ...newState.characters, player: updatedPlayer },
     }
-    newState = addLog(newState, `Player defeated the boss! +${GAME_CONFIG.DUNGEON_COIN_REWARD} coins.`)
+    newState = addLog(newState, `Player defeated the boss! +${coinReward} coins.`)
   } else {
-    const fishLoss = Math.min(player.resources.fish, GAME_CONFIG.DUNGEON_RESOURCE_PENALTY)
-    const wheatLoss = Math.min(player.resources.wheat, GAME_CONFIG.DUNGEON_RESOURCE_PENALTY)
+    // Losing the dungeon used to be an instant kill on early days (lose 5 fish
+    // and 5 wheat from a starting pool of 6). Cap the loss so the player keeps
+    // at least 1 of each, ensuring they can still survive the upcoming
+    // settlement that costs 1 fish + 1 wheat.
+    const fishLoss = Math.min(Math.max(0, player.resources.fish - 1), GAME_CONFIG.DUNGEON_RESOURCE_PENALTY)
+    const wheatLoss = Math.min(Math.max(0, player.resources.wheat - 1), GAME_CONFIG.DUNGEON_RESOURCE_PENALTY)
     const updatedPlayer = {
       ...player,
       resources: {
@@ -450,12 +465,12 @@ export function applyFish(state: GameState, charId: CharacterId): GameState {
   if (!c) return state
 
   const res = safeResources(c.resources)
-  // Storm: fishing yields drop to 1 today instead of the usual 3.
-  const yieldFish = state.dailyEvent === 'storm' ? 1 : GAME_CONFIG.FISH_PER_LABOR
+  // Storm: fishing yields cut in half (rounded up) — painful but not deadly.
+  const yieldFish = state.dailyEvent === 'storm' ? 2 : GAME_CONFIG.FISH_PER_LABOR
   const newState = updateCharacter(state, charId, {
     resources: { ...res, fish: res.fish + yieldFish },
   })
-  const note = state.dailyEvent === 'storm' ? ' (storm — only +1)' : ''
+  const note = state.dailyEvent === 'storm' ? ' (storm — only +2)' : ''
   return addLog(newState, `${charId} went fishing. +${yieldFish} fish${note}.`)
 }
 

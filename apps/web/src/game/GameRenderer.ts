@@ -74,10 +74,10 @@ export class GameRenderer {
     this.dungeon.onEvent(callback)
   }
 
-  enterDungeonMode() {
+  enterDungeonMode(dayLevel = 1) {
     this.world.worldContainer.visible = false
     this.dungeon.visible = true
-    this.dungeon.init()
+    this.dungeon.init(dayLevel)
     this.dungeonActive = true
     this.world.setInputEnabled(true)
   }

@@ -46,8 +46,8 @@ export function createCardSystem(): CardSystemState {
 }
 
 export function getXpForNextLevel(currentLevel: number): number {
-  const thresholds = [30, 60, 100, 150, 210, 280, 360]
-  return thresholds[Math.min(currentLevel, thresholds.length - 1)] ?? 360
+  const thresholds = [60, 130, 220, 330, 460, 610, 780]
+  return thresholds[Math.min(currentLevel, thresholds.length - 1)] ?? 780
 }
 
 export function addXP(state: CardSystemState, xp: number): boolean {

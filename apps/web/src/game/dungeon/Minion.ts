@@ -38,10 +38,10 @@ export class Minion {
     container.addChild(this.gfx)
   }
 
-  spawn(x: number, y: number) {
+  spawn(x: number, y: number, hp = HP_DEFAULT) {
     this.x = x
     this.y = y
-    this.hp = HP_DEFAULT
+    this.hp = hp
     this.active = true
     this.dying = false
     this.spawnTimer = SPAWN_DURATION
@@ -192,10 +192,10 @@ export class MinionPool {
     for (let i = 0; i < POOL_SIZE; i++) this.minions.push(new Minion(container))
   }
 
-  spawn(x: number, y: number): Minion | null {
+  spawn(x: number, y: number, hp?: number): Minion | null {
     const m = this.minions.find((mi) => !mi.active)
     if (!m) return null
-    m.spawn(x, y)
+    m.spawn(x, y, hp)
     return m
   }
 
