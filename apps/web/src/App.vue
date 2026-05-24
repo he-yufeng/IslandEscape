@@ -50,6 +50,8 @@ function closeDialogue() {
 
 async function endTurn() {
   game.closeActionMenu()
+  // Clear any active negotiation before ending turn
+  game.closeNegotiation()
   await game.submitAction({ type: 'end_turn' })
 }
 

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(corepack *)",
+      "Bash(npm install *)",
+      "Bash(cd C:\\\\Users\\\\admin\\\\Desktop\\\\IslandEscape *)"
+    ]
+  }
+}

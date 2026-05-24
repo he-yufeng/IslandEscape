@@ -79,6 +79,7 @@ export function createNewGame(gameId: string): GameState {
     winnerId: null,
     aiTurnOrder: [],
     currentAiIndex: 0,
+    playerNpcTradedToday: [],
     updatedAt: nowIso(),
   }
 }
@@ -128,6 +129,7 @@ export function startDay(state: GameState): GameState {
     phase: 'player_labor',  // Player must labor first
     aiTurnOrder,
     currentAiIndex: 0,
+    playerNpcTradedToday: [],
     log: [`--- Day ${state.day} ---`, `Merchant ship: fish ${merchantPrices.fishPrice}c, wheat ${merchantPrices.wheatPrice}c`, ...harvestLog],
     updatedAt: nowIso(),
   }
@@ -193,6 +195,9 @@ export function applyAITrade(state: GameState, charId: CharacterId, trade: AITra
   }
 
   if (trade.action === 'trade_peer') {
+    // LOGIC 3: Verify target is alive and not escaped
+    const target = trade.tradeTarget ? state.characters[trade.tradeTarget] : null
+    if (!target || !target.alive || target.escaped) return state
     // Deduct trade slot; actual negotiation handled in runtime
     if (character.tradeSlots > 0) {
       return updateCharacter(state, charId, { tradeSlots: character.tradeSlots - 1 })
@@ -251,8 +256,10 @@ export function settle(state: GameState): GameState {
         alive: false,
       }
       eliminatedIds.push(id)
-      const reason = newFish <= 0 ? 'fish depleted' : 'wheat depleted'
-      log.push(`${id} was eliminated (${reason}).`)
+      const reasons = []
+      if (newFish <= 0) reasons.push('fish')
+      if (newWheat <= 0) reasons.push('wheat')
+      log.push(`${id} was eliminated (${reasons.join(' and ')} depleted).`)
     } else {
       characters[id] = {
         ...c,
@@ -355,6 +362,29 @@ export function executePeerTrade(
   const cFrom = state.characters[from]
   const cTo = state.characters[to]
   if (!cFrom || !cTo) return state
+
+  // Validate that both parties have enough resources
+  if (cFrom.resources.fish < offer.fish ||
+      cFrom.resources.wheat < offer.wheat ||
+      cFrom.resources.coins < offer.coins ||
+      cTo.resources.fish < request.fish ||
+      cTo.resources.wheat < request.wheat ||
+      cTo.resources.coins < request.coins) {
+    return addLog(state, `Trade rejected: insufficient resources.`)
+  }
+
+  // Validate that resulting resources are non-negative
+  const newFromFish = cFrom.resources.fish - offer.fish + request.fish
+  const newFromWheat = cFrom.resources.wheat - offer.wheat + request.wheat
+  const newFromCoins = cFrom.resources.coins - offer.coins + request.coins
+  const newToFish = cTo.resources.fish + offer.fish - request.fish
+  const newToWheat = cTo.resources.wheat + offer.wheat - request.wheat
+  const newToCoins = cTo.resources.coins + offer.coins - request.coins
+
+  if (newFromFish < 0 || newFromWheat < 0 || newFromCoins < 0 ||
+      newToFish < 0 || newToWheat < 0 || newToCoins < 0) {
+    return addLog(state, `Trade rejected: would result in negative resources.`)
+  }
 
   const newFrom = {
     ...cFrom,
