@@ -223,6 +223,15 @@ const routes: FastifyPluginAsync = async (fastify) => {
           return reply.send({ state: session.state, negotiationDone: true })
         }
 
+        // Player rejected — end negotiation immediately, don't call NPC
+        if (action.accept === false) {
+          negotiations.delete(id)
+          broadcastSSE(id, { type: 'trade_result', success: false, from: 'player', to: negotiation.target, summary: `You walked away from ${negotiation.target}.` })
+          broadcastSSE(id, { type: 'state_update', state: session.state })
+          await persistGame(id, session.state)
+          return reply.send({ state: session.state, negotiationDone: true })
+        }
+
         // Check if max exchanges reached
         if (negotiation.messages.length >= GAME_CONFIG.MAX_NEGOTIATION_EXCHANGES * 2) {
           negotiations.delete(id)

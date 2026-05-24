@@ -187,8 +187,8 @@ async function rejectDeal() {
     message: 'No deal. I am walking away.',
     accept: false,
   })
-  // LOGIC 4: Actually end the negotiation from player side
-  game.closeNegotiation()
+  // Fully end negotiation — cannot be resumed
+  game.endNegotiation()
   emit('close')
 }
 

@@ -137,6 +137,13 @@ async function doMerchantSell() {
         <span class="action-icon">Chat</span>
         <span>Continue conversation</span>
       </button>
+      <!-- Has ongoing negotiation with a different NPC? Block -->
+      <div
+        v-else-if="game.activeNegotiation"
+        class="menu-note"
+      >
+        Finish your current conversation with {{ CHARACTER_META[game.activeNegotiation.target]?.name ?? game.activeNegotiation.target }} first.
+      </div>
       <!-- No ongoing negotiation: need trade slots -->
       <button
         v-else

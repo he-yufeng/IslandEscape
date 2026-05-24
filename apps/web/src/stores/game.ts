@@ -135,7 +135,8 @@ export const useGameStore = defineStore('game', () => {
           showDialoguePanel.value = true
           dialogueTarget.value = activeNegotiation.value.target
         } else {
-          // Update existing negotiation with server's authoritative message list
+          // Update existing negotiation with server's authoritative data
+          activeNegotiation.value.conversationId = neg.conversationId
           activeNegotiation.value.messages = neg.messages
           activeNegotiation.value.isNew = false
         }
@@ -145,9 +146,7 @@ export const useGameStore = defineStore('game', () => {
         // Negotiation truly ended (trade completed or rejected)
         // Clear negotiation state after a brief delay so user sees the result
         setTimeout(() => {
-          activeNegotiation.value = null
-          showDialoguePanel.value = false
-          dialogueTarget.value = null
+          endNegotiation()
         }, 2000)
       }
     } catch (err) {
@@ -249,9 +248,20 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function closeNegotiation() {
+    // If no message was ever sent (isNew), the negotiation never started server-side.
+    // Clear everything so the player can open a different NPC's dialogue.
+    if (activeNegotiation.value?.isNew) {
+      activeNegotiation.value = null
+    }
     showDialoguePanel.value = false
     dialogueTarget.value = null
-    // Keep activeNegotiation alive so the conversation can be resumed later.
+  }
+
+  /** Fully end a negotiation — clear all state, conversation cannot be resumed */
+  function endNegotiation() {
+    activeNegotiation.value = null
+    showDialoguePanel.value = false
+    dialogueTarget.value = null
   }
 
   // ---- Interaction helpers ----
@@ -304,6 +314,7 @@ export const useGameStore = defineStore('game', () => {
     disconnectSSE,
     openNegotiation,
     closeNegotiation,
+    endNegotiation,
     setInteraction,
     openActionMenu,
     closeActionMenu,
