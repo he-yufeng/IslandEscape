@@ -18,3 +18,21 @@ apps/server/drizzle
 .devdbrc
 .codex-logs
 .claude/
+
+# TeX compile intermediate files
+deliverables/**/*.aux
+deliverables/**/*.log
+deliverables/**/*.out
+deliverables/**/*.toc
+deliverables/**/*.bbl
+deliverables/**/*.blg
+deliverables/**/*.fls
+deliverables/**/*.fdb_latexmk
+deliverables/**/*.synctex.gz
+deliverables/**/*.lof
+deliverables/**/*.lot
+deliverables/**/*.idx
+deliverables/**/*.ind
+deliverables/**/*.ilg
+deliverables/**/*.bcf
+deliverables/**/*.run.xml
