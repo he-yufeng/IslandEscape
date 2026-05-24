@@ -18,9 +18,10 @@ function selectCard(cardId: string) {
       <h2 class="picker-title">Choose an Upgrade</h2>
       <div class="cards-row">
         <button
-          v-for="card in game.pendingCards"
+          v-for="(card, idx) in game.pendingCards"
           :key="card.id"
           class="card-btn"
+          :style="{ animationDelay: `${idx * 70}ms` }"
           @click="selectCard(card.id)"
         >
           <span class="card-icon">{{ card.icon }}</span>
@@ -41,6 +42,12 @@ function selectCard(cardId: string) {
   align-items: center;
   justify-content: center;
   z-index: 200;
+  animation: overlay-fade 0.2s ease-out;
+}
+
+@keyframes overlay-fade {
+  from { background: rgba(0, 0, 0, 0); }
+  to   { background: rgba(0, 0, 0, 0.7); }
 }
 
 .card-picker-box {
@@ -51,6 +58,12 @@ function selectCard(cardId: string) {
   text-align: center;
   max-width: 560px;
   width: 90%;
+  animation: box-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes box-pop {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
 
 .picker-title {
@@ -80,16 +93,28 @@ function selectCard(cardId: string) {
   border: 2px solid #4a4a6a;
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 0.12s ease-out, border-color 0.15s, background 0.15s, box-shadow 0.15s;
   color: #d0d0e0;
   font-family: monospace;
   max-width: 160px;
+  opacity: 0;
+  animation: card-rise 0.32s cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
 }
+
+@keyframes card-rise {
+  from { transform: translateY(28px) scale(0.92); opacity: 0; }
+  to   { transform: translateY(0) scale(1);       opacity: 1; }
+}
+
 .card-btn:hover {
   border-color: #c8a060;
   background: linear-gradient(180deg, #3a3a5a, #2a2a4a);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(200, 160, 96, 0.2);
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 4px 16px rgba(200, 160, 96, 0.25);
+}
+.card-btn:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 2px 8px rgba(200, 160, 96, 0.2);
 }
 
 .card-icon {

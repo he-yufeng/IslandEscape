@@ -1,4 +1,4 @@
-import type { GameState, GameSSEEvent } from '@game/shared'
+import type { GameState, GameSSEEvent, CharacterId, NegotiationMessage } from '@game/shared'
 import type { ServerResponse } from 'node:http'
 
 export type GameSession = {
@@ -8,6 +8,16 @@ export type GameSession = {
 }
 
 export const sessions = new Map<string, GameSession>()
+
+/** Live negotiation state shared between routes (player-initiated) and runtime (AI-initiated). */
+export interface ActiveNegotiation {
+  conversationId: string
+  /** The NPC partner from the player's perspective. */
+  target: CharacterId
+  messages: NegotiationMessage[]
+}
+
+export const negotiations = new Map<string, ActiveNegotiation>()
 
 export function broadcastSSE(gameId: string, event: GameSSEEvent): void {
   const session = sessions.get(gameId)

@@ -121,15 +121,47 @@ export const LOCATIONS = {
   dungeon: { col: 6, row: 2 },
 } as const
 
-/** AI movement targets for different actions */
-export function getActionTarget(action: string): MapPosition {
+/**
+ * Find the nearest tile of a given type to a starting position. Manhattan
+ * distance, brute-force scan — fine at 20×15. Returns null if not found.
+ */
+export function findNearestTile(
+  fromCol: number,
+  fromRow: number,
+  type: TileType,
+): MapPosition | null {
+  let best: MapPosition | null = null
+  let bestDist = Infinity
+  for (let r = 0; r < MAP_ROWS; r++) {
+    for (let c = 0; c < MAP_COLS; c++) {
+      if (getTile(c, r) !== type) continue
+      const d = Math.abs(c - fromCol) + Math.abs(r - fromRow)
+      if (d < bestDist) {
+        bestDist = d
+        best = { col: c, row: r }
+      }
+    }
+  }
+  return best
+}
+
+/**
+ * Resolve where an AI should walk for a given action, picking the closest
+ * matching tile from `(fromCol, fromRow)`. Falls back to the legacy hardcoded
+ * `LOCATIONS` if no matching tile exists in the map data.
+ */
+export function getActionTarget(
+  action: string,
+  fromCol = 7,
+  fromRow = 6,
+): MapPosition {
   switch (action) {
     case 'fish':
-      return LOCATIONS.fishing_spot_1
+      return findNearestTile(fromCol, fromRow, 'fishing_spot') ?? LOCATIONS.fishing_spot_1
     case 'farm':
-      return LOCATIONS.farmland
+      return findNearestTile(fromCol, fromRow, 'farmland') ?? LOCATIONS.farmland
     case 'trade_merchant':
-      return LOCATIONS.dock
+      return findNearestTile(fromCol, fromRow, 'dock') ?? LOCATIONS.dock
     default:
       return LOCATIONS.village_center
   }

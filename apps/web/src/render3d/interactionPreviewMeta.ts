@@ -35,6 +35,11 @@ export function getInteractionPreviewMeta(interaction: InteractionType): Interac
         title: 'Merchant Ship',
         subtitle: 'Today only. Convert surplus goods into escape money.',
       }
+    case 'dungeon':
+      return {
+        title: 'Boss Dungeon',
+        subtitle: 'A boss guards the cave. Win for coins, lose and pay in resources. One run per day.',
+      }
     case 'npc':
       return {
         title: interaction.characterName,

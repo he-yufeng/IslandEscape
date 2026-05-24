@@ -23,12 +23,12 @@ export const GAME_CONFIG = {
   MERCHANT_WHEAT_PRICE_RANGE: [1, 4] as const,
   // Dungeon
   PLAYER_MAX_HP: 15,
-  BOSS_MAX_HP: 60,
+  BOSS_MAX_HP: 90,
   BASE_BULLET_DAMAGE: 2,
   BASE_BULLET_COOLDOWN: 400,
   BASE_MOVE_SPEED: 160,
-  BOSS_BULLET_DAMAGE: 3,
-  BOSS_CHARGE_DAMAGE: 5,
+  BOSS_BULLET_DAMAGE: 4,
+  BOSS_CHARGE_DAMAGE: 6,
   BOSS_CHARGE_SPEED: 300,
   DUNGEON_COIN_REWARD: 20,
   DUNGEON_RESOURCE_PENALTY: 5,
@@ -169,6 +169,45 @@ export const DayPhaseSchema = z.enum([
 ])
 export type DayPhase = z.infer<typeof DayPhaseSchema>
 
+// ----- Daily random events -----
+
+export const DailyEventSchema = z.enum([
+  'none',
+  'storm',         // fishing yields only 1 fish today
+  'festival',      // friendship gains doubled on peer trades
+  'lucky_catch',   // every alive character gains +2 fish at dawn
+  'drought',       // night upkeep costs 2 wheat instead of 1
+])
+export type DailyEvent = z.infer<typeof DailyEventSchema>
+
+export const DAILY_EVENT_INFO: Record<DailyEvent, { label: string; icon: string; desc: string }> = {
+  none: {
+    label: 'Calm day',
+    icon: '☀️',
+    desc: 'A normal day on the island. Standard rules apply.',
+  },
+  storm: {
+    label: 'Storm',
+    icon: '⛈️',
+    desc: 'Heavy rain — fishing yields only 1 fish today (instead of 3).',
+  },
+  festival: {
+    label: 'Festival',
+    icon: '🎉',
+    desc: 'A festive mood — friendship gained from peer trades is doubled today.',
+  },
+  lucky_catch: {
+    label: 'Lucky Catch',
+    icon: '🎣',
+    desc: 'A school of fish washes ashore — every alive character gained +2 fish at dawn.',
+  },
+  drought: {
+    label: 'Drought',
+    icon: '🏜️',
+    desc: 'Wells run low — tonight\'s upkeep costs 2 wheat instead of 1.',
+  },
+}
+
 // ----- Full game state -----
 
 export const GameStateSchema = z.object({
@@ -188,6 +227,10 @@ export const GameStateSchema = z.object({
   dungeonState: DungeonStateSchema.nullable().default(null),
   /** NPCs the player has traded with today (prevents duplicate trades) */
   playerNpcTradedToday: z.array(CharacterIdSchema),
+  /** True if the player has already entered the dungeon today (one run per day). */
+  playerDungeonUsedToday: z.boolean().default(false),
+  /** A random per-day modifier (storm, festival, drought, …) for variety. */
+  dailyEvent: DailyEventSchema.default('none'),
   updatedAt: z.string().datetime(),
 })
 export type GameState = z.infer<typeof GameStateSchema>
@@ -208,12 +251,16 @@ export const PlayerActionSchema = z.discriminatedUnion('type', [
     type: z.literal('trade_peer'),
     target: CharacterIdSchema,
     message: z.string().min(1),
+    /** Optional structured proposal that pairs with the free-form message. */
+    proposal: TradeProposalSchema.optional(),
   }),
   z.object({
     type: z.literal('negotiate_reply'),
     conversationId: z.string(),
     message: z.string().min(1),
     accept: z.boolean().optional(),
+    /** Optional structured proposal that pairs with the free-form message. */
+    proposal: TradeProposalSchema.optional(),
   }),
   z.object({ type: z.literal('end_turn') }),
   z.object({ type: z.literal('enter_dungeon') }),
@@ -229,6 +276,12 @@ export const GameSSEEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ai_thinking'), characterId: CharacterIdSchema }),
   z.object({ type: z.literal('ai_decision'), characterId: CharacterIdSchema, decision: z.unknown() }),
   z.object({ type: z.literal('negotiation'), message: NegotiationMessageSchema }),
+  z.object({
+    type: z.literal('npc_initiates_negotiation'),
+    initiatorId: CharacterIdSchema,
+    conversationId: z.string(),
+    message: NegotiationMessageSchema,
+  }),
   z.object({ type: z.literal('trade_result'), success: z.boolean(), from: CharacterIdSchema, to: CharacterIdSchema, summary: z.string() }),
   z.object({ type: z.literal('settlement'), results: z.array(z.string()) }),
   z.object({ type: z.literal('elimination'), characterId: CharacterIdSchema }),

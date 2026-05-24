@@ -7,6 +7,8 @@ import {
   type AITradeDecision,
   type MerchantPrices,
   type DungeonResult,
+  type Resources,
+  type DailyEvent,
   ALL_CHARACTERS,
   AI_CHARACTERS,
   GAME_CONFIG,
@@ -15,6 +17,26 @@ import {
 
 function nowIso(): string {
   return new Date().toISOString()
+}
+
+/**
+ * Coerce arbitrary values into a finite integer. Defends every resource
+ * arithmetic site against null/undefined/NaN — without this, `JSON.stringify`
+ * turns NaN into null on persistence, which then breaks elimination checks
+ * (NaN/null comparisons are always false, so eliminated characters stay
+ * "alive" with bogus resources).
+ */
+function safeNum(v: unknown, fallback = 0): number {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN
+  return Number.isFinite(n) ? Math.trunc(n) : fallback
+}
+
+function safeResources(r: Partial<Resources> | undefined | null): Resources {
+  return {
+    fish: safeNum(r?.fish),
+    wheat: safeNum(r?.wheat),
+    coins: safeNum(r?.coins),
+  }
 }
 
 function randInt(min: number, max: number): number {
@@ -35,6 +57,18 @@ function generateMerchantPrices(): MerchantPrices {
     fishPrice: randInt(GAME_CONFIG.MERCHANT_FISH_PRICE_RANGE[0], GAME_CONFIG.MERCHANT_FISH_PRICE_RANGE[1]),
     wheatPrice: randInt(GAME_CONFIG.MERCHANT_WHEAT_PRICE_RANGE[0], GAME_CONFIG.MERCHANT_WHEAT_PRICE_RANGE[1]),
   }
+}
+
+/** Roll a fresh daily event. ~40 % of days have a non-trivial twist. */
+function rollDailyEvent(day: number): DailyEvent {
+  // Day 1 is always calm so first-time players can learn the basics.
+  if (day <= 1) return 'none'
+  const r = Math.random()
+  if (r < 0.60) return 'none'
+  if (r < 0.70) return 'storm'
+  if (r < 0.80) return 'festival'
+  if (r < 0.90) return 'lucky_catch'
+  return 'drought'
 }
 
 function makeCharacter(id: CharacterId): CharacterState {
@@ -82,6 +116,8 @@ export function createNewGame(gameId: string): GameState {
     currentAiIndex: 0,
     dungeonState: null,
     playerNpcTradedToday: [],
+    playerDungeonUsedToday: false,
+    dailyEvent: 'none',
     updatedAt: nowIso(),
   }
 }
@@ -90,12 +126,24 @@ export function createNewGame(gameId: string): GameState {
 
 export function startDay(state: GameState): GameState {
   const merchantPrices = generateMerchantPrices()
+  const dailyEvent = rollDailyEvent(state.day)
 
-  const characters = { ...state.characters }
+  let characters = { ...state.characters }
   for (const id of ALL_CHARACTERS) {
     const c = characters[id]
     if (c && c.alive && !c.escaped) {
       characters[id] = { ...c, tradeSlots: GAME_CONFIG.TRADE_SLOTS_PER_DAY }
+    }
+  }
+
+  // Lucky Catch event — every alive character receives +2 fish at dawn.
+  if (dailyEvent === 'lucky_catch') {
+    for (const id of ALL_CHARACTERS) {
+      const c = characters[id]
+      if (c && c.alive && !c.escaped) {
+        const res = safeResources(c.resources)
+        characters[id] = { ...c, resources: { ...res, fish: res.fish + 2 } }
+      }
     }
   }
 
@@ -123,6 +171,12 @@ export function startDay(state: GameState): GameState {
   })
   const aiTurnOrder = shuffleArray(aliveAI)
 
+  const eventLogLines: string[] = []
+  if (dailyEvent === 'storm') eventLogLines.push('⛈️ Storm — fishing yields only 1 fish today.')
+  else if (dailyEvent === 'festival') eventLogLines.push('🎉 Festival — friendship gains doubled today.')
+  else if (dailyEvent === 'lucky_catch') eventLogLines.push('🎣 Lucky Catch — everyone alive received +2 fish at dawn.')
+  else if (dailyEvent === 'drought') eventLogLines.push('🏜️ Drought — tonight\'s upkeep costs 2 wheat.')
+
   return {
     ...state,
     characters,
@@ -132,7 +186,14 @@ export function startDay(state: GameState): GameState {
     aiTurnOrder,
     currentAiIndex: 0,
     playerNpcTradedToday: [],
-    log: [`--- Day ${state.day} ---`, `Merchant ship: fish ${merchantPrices.fishPrice}c, wheat ${merchantPrices.wheatPrice}c`, ...harvestLog],
+    playerDungeonUsedToday: false,
+    dailyEvent,
+    log: [
+      `--- Day ${state.day} ---`,
+      `Merchant ship: fish ${merchantPrices.fishPrice}c, wheat ${merchantPrices.wheatPrice}c`,
+      ...eventLogLines,
+      ...harvestLog,
+    ],
     updatedAt: nowIso(),
   }
 }
@@ -242,25 +303,34 @@ export function settle(state: GameState): GameState {
     const c = characters[id]
     if (!c || !c.alive || c.escaped) continue
 
+    // Coerce defensively — if persistence ever round-tripped a NaN through
+    // JSON it'd come back as `null`, and `null - 1 === -1` here would be
+    // misleading; better to canonicalize before any arithmetic.
+    const safeRes = safeResources(c.resources)
+    const safeChar = { ...c, resources: safeRes }
+
     // Check escape first
-    if (c.resources.coins >= GAME_CONFIG.WIN_COINS) {
-      characters[id] = { ...c, escaped: true }
+    if (safeRes.coins >= GAME_CONFIG.WIN_COINS) {
+      characters[id] = { ...safeChar, escaped: true }
       escapedIds.push(id)
-      log.push(`${id} reached ${c.resources.coins} coins and escaped the island!`)
+      log.push(`${id} reached ${safeRes.coins} coins and escaped the island!`)
       if (id === 'player' && !winnerId) {
         winnerId = id
       }
       continue
     }
 
-    // Consume daily resources
-    const newFish = c.resources.fish - GAME_CONFIG.DAILY_FISH_COST
-    const newWheat = c.resources.wheat - GAME_CONFIG.DAILY_WHEAT_COST
+    // Consume daily resources — drought event doubles the wheat cost.
+    const wheatCost = state.dailyEvent === 'drought'
+      ? GAME_CONFIG.DAILY_WHEAT_COST * 2
+      : GAME_CONFIG.DAILY_WHEAT_COST
+    const newFish = safeRes.fish - GAME_CONFIG.DAILY_FISH_COST
+    const newWheat = safeRes.wheat - wheatCost
 
     if (newFish <= 0 || newWheat <= 0) {
       characters[id] = {
-        ...c,
-        resources: { ...c.resources, fish: newFish, wheat: newWheat },
+        ...safeChar,
+        resources: { ...safeRes, fish: newFish, wheat: newWheat },
         alive: false,
       }
       eliminatedIds.push(id)
@@ -270,10 +340,10 @@ export function settle(state: GameState): GameState {
       log.push(`${id} was eliminated (${reasons.join(' and ')} depleted).`)
     } else {
       characters[id] = {
-        ...c,
-        resources: { ...c.resources, fish: newFish, wheat: newWheat },
+        ...safeChar,
+        resources: { ...safeRes, fish: newFish, wheat: newWheat },
       }
-      log.push(`${id}: fish ${newFish}, wheat ${newWheat}, coins ${c.resources.coins}`)
+      log.push(`${id}: fish ${newFish}, wheat ${newWheat}, coins ${safeRes.coins}`)
     }
   }
 
@@ -298,6 +368,7 @@ export function enterDungeon(state: GameState): GameState {
   const player = state.characters.player
   if (!player) throw new Error('Player not found')
   if (state.dungeonState?.active) throw new Error('Already in dungeon')
+  if (state.playerDungeonUsedToday) throw new Error('You have already entered the dungeon today.')
   if (player.tradeSlots <= 0) throw new Error('No trade slots remaining')
 
   const newState: GameState = {
@@ -307,6 +378,7 @@ export function enterDungeon(state: GameState): GameState {
       player: { ...player, tradeSlots: player.tradeSlots - 1 },
     },
     dungeonState: { active: true },
+    playerDungeonUsedToday: true,
     updatedAt: nowIso(),
   }
   return addLog(newState, 'Player entered the dungeon!')
@@ -377,10 +449,14 @@ export function applyFish(state: GameState, charId: CharacterId): GameState {
   const c = state.characters[charId]
   if (!c) return state
 
+  const res = safeResources(c.resources)
+  // Storm: fishing yields drop to 1 today instead of the usual 3.
+  const yieldFish = state.dailyEvent === 'storm' ? 1 : GAME_CONFIG.FISH_PER_LABOR
   const newState = updateCharacter(state, charId, {
-    resources: { ...c.resources, fish: c.resources.fish + GAME_CONFIG.FISH_PER_LABOR },
+    resources: { ...res, fish: res.fish + yieldFish },
   })
-  return addLog(newState, `${charId} went fishing. +${GAME_CONFIG.FISH_PER_LABOR} fish.`)
+  const note = state.dailyEvent === 'storm' ? ' (storm — only +1)' : ''
+  return addLog(newState, `${charId} went fishing. +${yieldFish} fish${note}.`)
 }
 
 export function applyFarm(state: GameState, charId: CharacterId): GameState {
@@ -407,27 +483,31 @@ export function applyMerchantTrade(
   if (c.tradeSlots <= 0) {
     return addLog(state, `${charId} has no trade slots remaining.`)
   }
-  if (sell.fish > c.resources.fish || sell.wheat > c.resources.wheat) {
+  // Coerce: AI decision JSON occasionally arrives with null/undefined fields.
+  const res = safeResources(c.resources)
+  const sellFish = safeNum(sell.fish)
+  const sellWheat = safeNum(sell.wheat)
+  if (sellFish > res.fish || sellWheat > res.wheat) {
     return addLog(state, `${charId} does not have enough resources to sell.`)
   }
-  if (sell.fish === 0 && sell.wheat === 0) {
+  if (sellFish === 0 && sellWheat === 0) {
     return addLog(state, `${charId} tried to sell nothing to the merchant.`)
   }
 
-  const coinsGained = sell.fish * state.merchantPrices.fishPrice + sell.wheat * state.merchantPrices.wheatPrice
+  const coinsGained = sellFish * state.merchantPrices.fishPrice + sellWheat * state.merchantPrices.wheatPrice
 
   const newState = updateCharacter(state, charId, {
     resources: {
-      fish: c.resources.fish - sell.fish,
-      wheat: c.resources.wheat - sell.wheat,
-      coins: c.resources.coins + coinsGained,
+      fish: res.fish - sellFish,
+      wheat: res.wheat - sellWheat,
+      coins: res.coins + coinsGained,
     },
     tradeSlots: c.tradeSlots - 1,
   })
 
   const parts = []
-  if (sell.fish > 0) parts.push(`${sell.fish} fish`)
-  if (sell.wheat > 0) parts.push(`${sell.wheat} wheat`)
+  if (sellFish > 0) parts.push(`${sellFish} fish`)
+  if (sellWheat > 0) parts.push(`${sellWheat} wheat`)
 
   return addLog(newState, `${charId} sold ${parts.join(' and ')} to the merchant for ${coinsGained} coins.`)
 }
@@ -443,23 +523,37 @@ export function executePeerTrade(
   const cTo = state.characters[to]
   if (!cFrom || !cTo) return state
 
+  // Coerce in case persistence or LLM output ever introduced null/NaN.
+  const fromRes = safeResources(cFrom.resources)
+  const toRes = safeResources(cTo.resources)
+  const o = {
+    fish: safeNum(offer.fish),
+    wheat: safeNum(offer.wheat),
+    coins: safeNum(offer.coins),
+  }
+  const r = {
+    fish: safeNum(request.fish),
+    wheat: safeNum(request.wheat),
+    coins: safeNum(request.coins),
+  }
+
   // Validate that both parties have enough resources
-  if (cFrom.resources.fish < offer.fish ||
-      cFrom.resources.wheat < offer.wheat ||
-      cFrom.resources.coins < offer.coins ||
-      cTo.resources.fish < request.fish ||
-      cTo.resources.wheat < request.wheat ||
-      cTo.resources.coins < request.coins) {
+  if (fromRes.fish < o.fish ||
+      fromRes.wheat < o.wheat ||
+      fromRes.coins < o.coins ||
+      toRes.fish < r.fish ||
+      toRes.wheat < r.wheat ||
+      toRes.coins < r.coins) {
     return addLog(state, `Trade rejected: insufficient resources.`)
   }
 
   // Validate that resulting resources are non-negative
-  const newFromFish = cFrom.resources.fish - offer.fish + request.fish
-  const newFromWheat = cFrom.resources.wheat - offer.wheat + request.wheat
-  const newFromCoins = cFrom.resources.coins - offer.coins + request.coins
-  const newToFish = cTo.resources.fish + offer.fish - request.fish
-  const newToWheat = cTo.resources.wheat + offer.wheat - request.wheat
-  const newToCoins = cTo.resources.coins + offer.coins - request.coins
+  const newFromFish = fromRes.fish - o.fish + r.fish
+  const newFromWheat = fromRes.wheat - o.wheat + r.wheat
+  const newFromCoins = fromRes.coins - o.coins + r.coins
+  const newToFish = toRes.fish + o.fish - r.fish
+  const newToWheat = toRes.wheat + o.wheat - r.wheat
+  const newToCoins = toRes.coins + o.coins - r.coins
 
   if (newFromFish < 0 || newFromWheat < 0 || newFromCoins < 0 ||
       newToFish < 0 || newToWheat < 0 || newToCoins < 0) {
@@ -469,27 +563,31 @@ export function executePeerTrade(
   const newFrom = {
     ...cFrom,
     resources: {
-      fish: cFrom.resources.fish - offer.fish + request.fish,
-      wheat: cFrom.resources.wheat - offer.wheat + request.wheat,
-      coins: cFrom.resources.coins - offer.coins + request.coins,
+      fish: newFromFish,
+      wheat: newFromWheat,
+      coins: newFromCoins,
     },
   }
   const newTo = {
     ...cTo,
     resources: {
-      fish: cTo.resources.fish + offer.fish - request.fish,
-      wheat: cTo.resources.wheat + offer.wheat - request.wheat,
-      coins: cTo.resources.coins + offer.coins - request.coins,
+      fish: newToFish,
+      wheat: newToWheat,
+      coins: newToCoins,
     },
   }
 
   const fKey = friendshipKey(from, to)
   const newFriendship = { ...state.friendship }
-  newFriendship[fKey] = (newFriendship[fKey] || 0) + GAME_CONFIG.FRIENDSHIP_TRADE_BONUS
+  // Festival event: peer trades give double friendship bonus today.
+  const friendshipMul = state.dailyEvent === 'festival' ? 2 : 1
+  const bonus = GAME_CONFIG.FRIENDSHIP_TRADE_BONUS * friendshipMul
+  newFriendship[fKey] = (newFriendship[fKey] || 0) + bonus
 
   const characters = { ...state.characters, [from]: newFrom, [to]: newTo }
   const newState = { ...state, characters, friendship: newFriendship, updatedAt: nowIso() }
-  return addLog(newState, `${from} traded with ${to}. Friendship +${GAME_CONFIG.FRIENDSHIP_TRADE_BONUS}.`)
+  const festivalNote = state.dailyEvent === 'festival' ? ' (festival 2×)' : ''
+  return addLog(newState, `${from} traded with ${to}. Friendship +${bonus}${festivalNote}.`)
 }
 
 function updateCharacter(state: GameState, charId: CharacterId, patch: Partial<CharacterState>): GameState {

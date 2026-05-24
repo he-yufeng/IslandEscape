@@ -318,6 +318,50 @@ export function buildPreviewDetails(context: PreviewPanelContext): PreviewDetail
         ],
       }
     }
+
+    case 'dungeon': {
+      const usedToday = context.state?.playerDungeonUsedToday === true
+      const inTradePhase = context.phase === 'player_trade'
+      const hasSlots = context.playerTradeSlots > 0
+
+      let runStatus: { label: string; tone: PreviewStat['tone'] }
+      if (usedToday) runStatus = { label: 'Already entered today', tone: 'warn' }
+      else if (!inTradePhase) runStatus = { label: 'Trade phase only', tone: 'warn' }
+      else if (!hasSlots) runStatus = { label: 'No trade slots', tone: 'warn' }
+      else runStatus = { label: 'Ready to enter', tone: 'good' }
+
+      return {
+        kindLabel: 'Boss Dungeon',
+        title: meta.title,
+        subtitle: meta.subtitle,
+        sections: [
+          {
+            title: 'Run Conditions',
+            note: 'A boss guards the cave. Win for coins, lose and pay in resources. One run per day.',
+            stats: [
+              { label: 'Status', value: runStatus.label, tone: runStatus.tone },
+              { label: 'Cost', value: '1 trade slot' },
+              { label: 'Phase Gate', value: inTradePhase ? 'Open now' : 'Trade phase only', tone: inTradePhase ? 'good' : 'warn' },
+              { label: 'Trade Slots Left', value: String(context.playerTradeSlots) },
+            ],
+          },
+          {
+            title: 'Outcomes',
+            stats: [
+              { label: 'Win Reward', value: `+${GAME_CONFIG.DUNGEON_COIN_REWARD} coins`, tone: 'good' },
+              { label: 'Loss Penalty', value: `-${GAME_CONFIG.DUNGEON_RESOURCE_PENALTY} fish & wheat`, tone: 'warn' },
+              { label: 'Boss HP', value: String(GAME_CONFIG.BOSS_MAX_HP), tone: 'accent' },
+              { label: 'Player HP', value: String(GAME_CONFIG.PLAYER_MAX_HP) },
+            ],
+          },
+          {
+            title: 'Your Supplies',
+            stats: buildResourceStats(player),
+          },
+          ...buildFutureInteractionSections(context.interaction, context.state),
+        ],
+      }
+    }
   }
 }
 

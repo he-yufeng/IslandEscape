@@ -33,17 +33,18 @@ export class XPOrb {
     this.gfx.visible = false
   }
 
-  update(dt: number, playerX: number, playerY: number) {
+  update(dt: number, playerX: number, playerY: number, magnetMul = 1) {
     if (!this.active) return
     const ds = dt * 0.016
     this.time += ds
 
     // Magnet effect: move toward player if close enough
+    const range = MAGNET_RANGE * magnetMul
     const dx = playerX - this.x
     const dy = playerY - this.y
     const dist = Math.sqrt(dx * dx + dy * dy)
-    if (dist < MAGNET_RANGE && dist > 0) {
-      const speed = MAGNET_SPEED * (1 - dist / MAGNET_RANGE) + 40
+    if (dist < range && dist > 0) {
+      const speed = MAGNET_SPEED * (1 - dist / range) + 40
       this.x += (dx / dist) * speed * ds
       this.y += (dy / dist) * speed * ds
     }
@@ -94,9 +95,9 @@ export class XPOrbPool {
     return this.orbs.filter(o => o.active)
   }
 
-  updateAll(dt: number, playerX: number, playerY: number) {
+  updateAll(dt: number, playerX: number, playerY: number, magnetMul = 1) {
     for (const o of this.orbs) {
-      o.update(dt, playerX, playerY)
+      o.update(dt, playerX, playerY, magnetMul)
     }
   }
 

@@ -38,6 +38,16 @@ const npcFriendshipHearts = computed(() => {
   return { filled: 0, empty: 4, text: '♡ Stranger' }
 })
 
+const dungeonUsedToday = computed(() => game.state?.playerDungeonUsedToday === true)
+const dungeonDisabled = computed(() =>
+  game.playerTradeSlots <= 0 || game.isLoading || dungeonUsedToday.value
+)
+const dungeonCostLabel = computed(() => {
+  if (dungeonUsedToday.value) return '(Already entered today)'
+  if (game.playerTradeSlots <= 0) return '(No trade slots)'
+  return '(1 trade slot)'
+})
+
 const menuTitle = computed(() => {
   if (!props.interaction) return ''
   switch (props.interaction.kind) {
@@ -234,12 +244,12 @@ async function doMerchantSell() {
       </div>
       <button
         class="menu-action-btn dungeon-btn"
-        :disabled="game.playerTradeSlots <= 0 || game.isLoading"
+        :disabled="dungeonDisabled"
         @click="enterDungeon"
       >
         <span class="action-icon">⚔️</span>
         <span>Enter the Dungeon</span>
-        <span class="action-cost">{{ game.playerTradeSlots > 0 ? '(1 trade slot)' : '(No trade slots)' }}</span>
+        <span class="action-cost">{{ dungeonCostLabel }}</span>
       </button>
     </div>
   </div>

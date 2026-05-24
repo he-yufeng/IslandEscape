@@ -4,7 +4,11 @@
       "Bash(pnpm *)",
       "Bash(corepack *)",
       "Bash(npm install *)",
-      "Bash(cd C:\\\\Users\\\\admin\\\\Desktop\\\\IslandEscape *)"
+      "Bash(cd C:\\\\Users\\\\admin\\\\Desktop\\\\IslandEscape *)",
+      "Bash(git -C /Users/erfeiyu/repo/IslandEscape log --oneline -20)",
+      "Bash(git -C /Users/erfeiyu/repo/IslandEscape diff --stat main...feature/fight)",
+      "Bash(git -C /Users/erfeiyu/repo/IslandEscape diff main -- apps/web/src/render3d/interactionPreviewMeta.ts)",
+      "Bash(git -C /Users/erfeiyu/repo/IslandEscape log --oneline -5 -- apps/web/src/render3d/interactionPreviewMeta.ts)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
-import { GAME_CONFIG } from '@game/shared'
+import { GAME_CONFIG, DAILY_EVENT_INFO, type DailyEvent } from '@game/shared'
 
 const game = useGameStore()
 
@@ -11,6 +11,33 @@ const coins = computed(() => game.playerState?.resources.coins ?? 0)
 const escapeProgress = computed(() => {
   const pct = Math.min(100, Math.round((coins.value / GAME_CONFIG.WIN_COINS) * 100))
   return pct
+})
+
+// Pulse animation tokens — bumped on every change to retrigger CSS animation.
+const fishPulse = ref(0)
+const wheatPulse = ref(0)
+const coinsPulse = ref(0)
+const fishTone = ref<'pos' | 'neg' | ''>('')
+const wheatTone = ref<'pos' | 'neg' | ''>('')
+const coinsTone = ref<'pos' | 'neg' | ''>('')
+
+watch(fish, (newVal, oldVal) => {
+  if (oldVal === undefined || newVal === oldVal) return
+  fishPulse.value++
+  fishTone.value = newVal > oldVal ? 'pos' : 'neg'
+  window.setTimeout(() => { fishTone.value = '' }, 600)
+})
+watch(wheat, (newVal, oldVal) => {
+  if (oldVal === undefined || newVal === oldVal) return
+  wheatPulse.value++
+  wheatTone.value = newVal > oldVal ? 'pos' : 'neg'
+  window.setTimeout(() => { wheatTone.value = '' }, 600)
+})
+watch(coins, (newVal, oldVal) => {
+  if (oldVal === undefined || newVal === oldVal) return
+  coinsPulse.value++
+  coinsTone.value = newVal > oldVal ? 'pos' : 'neg'
+  window.setTimeout(() => { coinsTone.value = '' }, 600)
 })
 
 const phaseLabel = computed(() => {
@@ -54,6 +81,9 @@ const phaseColor = computed(() => {
 const tradeSlots = computed(() => game.playerTradeSlots)
 const merchantFish = computed(() => game.merchantPrices.fishPrice)
 const merchantWheat = computed(() => game.merchantPrices.wheatPrice)
+
+const dailyEvent = computed<DailyEvent>(() => game.state?.dailyEvent ?? 'none')
+const dailyEventInfo = computed(() => DAILY_EVENT_INFO[dailyEvent.value])
 </script>
 
 <template>
@@ -68,23 +98,35 @@ const merchantWheat = computed(() => game.merchantPrices.wheatPrice)
       <span :class="['hud-badge', phaseColor]">{{ phaseLabel }}</span>
     </div>
 
+    <!-- Daily event badge — only shows on non-calm days -->
+    <div
+      v-if="dailyEvent !== 'none'"
+      class="hud-section"
+      :title="dailyEventInfo.desc"
+    >
+      <span class="hud-event-badge">
+        <span class="hud-event-icon">{{ dailyEventInfo.icon }}</span>
+        <span class="hud-event-label">{{ dailyEventInfo.label }}</span>
+      </span>
+    </div>
+
     <!-- Divider -->
     <div class="hud-divider" />
 
     <!-- Resources -->
     <div class="hud-section" title="Fish">
       <span class="hud-icon">F</span>
-      <span class="hud-value text-sky-300">{{ fish }}</span>
+      <span :key="fishPulse" :class="['hud-value', 'text-sky-300', fishTone && `pulse-${fishTone}`]">{{ fish }}</span>
     </div>
 
     <div class="hud-section" title="Wheat">
       <span class="hud-icon">W</span>
-      <span class="hud-value text-amber-300">{{ wheat }}</span>
+      <span :key="wheatPulse" :class="['hud-value', 'text-amber-300', wheatTone && `pulse-${wheatTone}`]">{{ wheat }}</span>
     </div>
 
     <div class="hud-section" title="Coins">
       <span class="hud-icon">C</span>
-      <span class="hud-value text-yellow-300">{{ coins }}</span>
+      <span :key="coinsPulse" :class="['hud-value', 'text-yellow-300', coinsTone && `pulse-${coinsTone}`]">{{ coins }}</span>
     </div>
 
     <!-- Divider -->
@@ -224,5 +266,51 @@ const merchantWheat = computed(() => game.merchantPrices.wheatPrice)
   font-weight: bold;
   color: #fff;
   text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+
+.pulse-pos {
+  animation: hud-pulse-pos 0.6s ease-out;
+}
+.pulse-neg {
+  animation: hud-pulse-neg 0.6s ease-out;
+}
+
+@keyframes hud-pulse-pos {
+  0%   { transform: scale(1);    text-shadow: none; }
+  20%  { transform: scale(1.6);  text-shadow: 0 0 10px rgba(140, 240, 140, 0.95); color: #b3ffb3; }
+  100% { transform: scale(1);    text-shadow: none; }
+}
+
+@keyframes hud-pulse-neg {
+  0%   { transform: scale(1);    text-shadow: none; }
+  20%  { transform: scale(1.4);  text-shadow: 0 0 8px rgba(255, 120, 80, 0.9); color: #ff9a66; }
+  100% { transform: scale(1);    text-shadow: none; }
+}
+
+.hud-event-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(200, 160, 96, 0.25), rgba(200, 160, 96, 0.08));
+  border: 1px solid rgba(200, 160, 96, 0.5);
+  cursor: help;
+  animation: event-glow 2.4s ease-in-out infinite;
+}
+.hud-event-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.hud-event-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #f0d5a3;
+  text-transform: uppercase;
+}
+@keyframes event-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(200, 160, 96, 0); }
+  50% { box-shadow: 0 0 8px rgba(200, 160, 96, 0.4); }
 }
 </style>

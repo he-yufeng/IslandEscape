@@ -162,6 +162,15 @@ export class GameWorld {
   private nightOverlay: Graphics | null = null
   private inputEnabled = true
 
+  /** Per-character animation queue so labor → trade walks chain instead of overlap. */
+  private aiQueues: Map<string, Array<() => Promise<void>>> = new Map()
+  private aiQueueRunning: Map<string, boolean> = new Map()
+
+  /** Pulsing highlight that follows whatever interactable the player is next to. */
+  private interactionHighlight: Graphics | null = null
+  private interactionHighlightTarget: { col: number; row: number; kind: string } | null = null
+  private interactionHighlightPhase = 0
+
   constructor() {
     this.worldContainer = new Container()
     this.worldContainer.label = 'game-world'
@@ -296,6 +305,7 @@ export class GameWorld {
           characterId: id as CharacterId,
           characterName: char.name,
         }
+        this.setInteractionHighlight(char.col, char.row, 'npc')
         this.emit({ type: 'interaction_changed', interaction })
         return interaction
       }
@@ -325,22 +335,89 @@ export class GameWorld {
             break
         }
         if (interaction) {
+          this.setInteractionHighlight(checkCol, checkRow, interaction.kind)
           this.emit({ type: 'interaction_changed', interaction })
           return interaction
         }
       }
     }
 
+    this.setInteractionHighlight(null)
     this.emit({ type: 'interaction_changed', interaction: null })
     return null
   }
 
-  /** Animate an AI character to a location */
-  public async animateAIMove(characterId: string, action: string): Promise<void> {
+  /**
+   * Show / move / hide a pulsing ring on the tile the player can interact with.
+   * The colour hints at what kind of interaction is available so it reads at a
+   * glance even before the bottom-bar prompt appears.
+   */
+  private setInteractionHighlight(
+    colOrNull: number | null,
+    row?: number,
+    kind?: string,
+  ): void {
+    if (colOrNull === null) {
+      if (this.interactionHighlight) {
+        this.effectsLayer.removeChild(this.interactionHighlight)
+        this.interactionHighlight.destroy()
+        this.interactionHighlight = null
+      }
+      this.interactionHighlightTarget = null
+      return
+    }
+
+    const col = colOrNull
+    if (!this.interactionHighlight) {
+      this.interactionHighlight = new Graphics()
+      this.effectsLayer.addChild(this.interactionHighlight)
+    }
+    this.interactionHighlightTarget = { col, row: row!, kind: kind ?? '' }
+    this.drawInteractionHighlight()
+  }
+
+  private drawInteractionHighlight(): void {
+    if (!this.interactionHighlight || !this.interactionHighlightTarget) return
+    const t = this.interactionHighlightTarget
+    const x = t.col * TILE_SIZE
+    const y = t.row * TILE_SIZE
+    const pulse = 0.55 + Math.sin(this.interactionHighlightPhase * 4) * 0.25
+
+    const colorByKind: Record<string, number> = {
+      fish: 0x6fd2ff,
+      farm: 0xffd76a,
+      merchant: 0xff9e3a,
+      dungeon: 0xff5a5a,
+      npc: 0xff7fb6,
+    }
+    const color = colorByKind[t.kind] ?? 0xc8e0ff
+
+    const g = this.interactionHighlight
+    g.clear()
+    // Tile-fitting outer pulse
+    g.roundRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2, 5)
+      .stroke({ color, width: 2, alpha: pulse })
+    // Inner softer ring
+    g.roundRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8, 4)
+      .fill({ color, alpha: pulse * 0.12 })
+    // Tiny corner caret marker (top-left) so the eye catches it instantly
+    const sz = 5
+    g.moveTo(x + 5, y + 5).lineTo(x + 5 + sz, y + 5).stroke({ color, width: 2, alpha: pulse })
+    g.moveTo(x + 5, y + 5).lineTo(x + 5, y + 5 + sz).stroke({ color, width: 2, alpha: pulse })
+  }
+
+  /** Animate an AI character to a location.
+   *  If targetOverride is provided, walk there directly; otherwise look up via getActionTarget
+   *  using the character's current grid position so they pick the *closest* matching tile. */
+  public async animateAIMove(
+    characterId: string,
+    action: string,
+    targetOverride?: MapPosition,
+  ): Promise<void> {
     const char = this.characters.get(characterId)
     if (!char || char.eliminated || char.escaped) return
 
-    const target = getActionTarget(action)
+    const target = targetOverride ?? getActionTarget(action, char.col, char.row)
 
     // Get occupied positions (excluding this character)
     const occupied = new Set<string>()
@@ -351,12 +428,51 @@ export class GameWorld {
     }
 
     const path = findPath(char.col, char.row, target.col, target.row, occupied)
+    if (path.length === 0) return
 
-    if (path.length > 0) {
-      // Limit path length for faster animation
-      const shortPath = path.slice(0, Math.min(path.length, 8))
-      await char.walkPath(shortPath)
+    // No artificial path-length cap — let the NPC actually arrive at their target.
+    await char.walkPath(path)
+  }
+
+  /**
+   * Queue a per-character animation step (e.g. walk-then-emote). Steps for the
+   * same character run sequentially so labor → trade_merchant walks chain
+   * cleanly instead of fighting each other.
+   */
+  public enqueueAIAnimation(characterId: string, task: () => Promise<void>) {
+    let queue = this.aiQueues.get(characterId)
+    if (!queue) {
+      queue = []
+      this.aiQueues.set(characterId, queue)
     }
+    queue.push(task)
+    void this.drainAIQueue(characterId)
+  }
+
+  private async drainAIQueue(characterId: string) {
+    if (this.aiQueueRunning.get(characterId)) return
+    const queue = this.aiQueues.get(characterId)
+    if (!queue || queue.length === 0) return
+    this.aiQueueRunning.set(characterId, true)
+    try {
+      while (queue.length > 0) {
+        const task = queue.shift()!
+        try {
+          await task()
+        } catch (err) {
+          console.error('[ai-anim] task failed', err)
+        }
+      }
+    } finally {
+      this.aiQueueRunning.set(characterId, false)
+    }
+  }
+
+  /** Whether a character has a queued or running scripted animation (used to gate idle wandering). */
+  public isAIAnimating(characterId: string): boolean {
+    if (this.aiQueueRunning.get(characterId)) return true
+    const q = this.aiQueues.get(characterId)
+    return !!(q && q.length > 0)
   }
 
   /** Show floating text effect */
@@ -459,12 +575,96 @@ export class GameWorld {
       char.update(delta)
     }
 
+    // Idle NPC wandering — keeps the village feeling alive.
+    this.tickWandering(delta)
+
+    // Pulsing interactable highlight
+    if (this.interactionHighlight && this.interactionHighlightTarget) {
+      this.interactionHighlightPhase += delta * 0.016
+      this.drawInteractionHighlight()
+    }
+
     // Poll held movement keys each frame for continuous movement
     if (this.inputEnabled) {
       const dir = this.inputManager.getMovementDirection()
       if (dir) {
         this.movePlayer(dir.dcol, dir.drow)
       }
+    }
+  }
+
+  /**
+   * Idle wandering for NPCs. When not actively walking (e.g. between AI turns or
+   * during the player's phase), pick a random adjacent walkable tile within
+   * `WANDER_RADIUS` of the home tile and step there. Cooldown gates the rate so
+   * NPCs don't sprint frame-by-frame.
+   */
+  private tickWandering(delta: number) {
+    const ds = delta * 0.016
+    const WANDER_RADIUS = 4
+
+    for (const [id, char] of this.characters) {
+      if (id === 'player') continue
+      if (char.eliminated || char.escaped) continue
+      if (char.moving) continue
+      // Don't wander when a scripted AI walk (labor → trade) is queued for this NPC.
+      if (this.isAIAnimating(id)) continue
+
+      char.wanderCooldown -= ds
+      if (char.wanderCooldown > 0) continue
+      // Schedule the next attempt — randomized per character so they don't sync.
+      char.wanderCooldown = 1.5 + Math.random() * 2.5
+
+      // Occasionally just stay put for a beat (looks more natural).
+      if (Math.random() < 0.25) continue
+
+      const distFromHome = Math.abs(char.col - char.homeCol) + Math.abs(char.row - char.homeRow)
+      const farFromHome = distFromHome > WANDER_RADIUS
+      const candidates: Array<{ col: number; row: number; closer: boolean }> = []
+      const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]] as const
+
+      for (const [dc, dr] of dirs) {
+        const nc = char.col + dc
+        const nr = char.row + dr
+
+        const newDist = Math.abs(nc - char.homeCol) + Math.abs(nr - char.homeRow)
+
+        if (farFromHome) {
+          // We've drifted past the wander radius (e.g. AI walked to a fishing
+          // spot during their turn). Only let them step back toward home.
+          if (newDist >= distFromHome) continue
+        } else {
+          // Inside the radius — stay within an axis-aligned box around home.
+          if (Math.abs(nc - char.homeCol) > WANDER_RADIUS) continue
+          if (Math.abs(nr - char.homeRow) > WANDER_RADIUS) continue
+        }
+
+        if (!isWalkable(getTile(nc, nr))) continue
+
+        // Don't walk onto another live character or the player.
+        let blocked = false
+        for (const [otherId, other] of this.characters) {
+          if (otherId === id) continue
+          if (other.eliminated || other.escaped) continue
+          if (other.col === nc && other.row === nr) { blocked = true; break }
+        }
+        if (blocked) continue
+
+        candidates.push({ col: nc, row: nr, closer: newDist < distFromHome })
+      }
+
+      if (candidates.length === 0) continue
+
+      // Soft pull toward home: when within radius but offset, prefer steps that
+      // close the distance so the character eventually drifts back to its spawn.
+      const weighted: Array<{ col: number; row: number }> = []
+      for (const c of candidates) {
+        const weight = distFromHome >= 2 && c.closer ? 3 : 1
+        for (let i = 0; i < weight; i++) weighted.push(c)
+      }
+
+      const pick = weighted[Math.floor(Math.random() * weighted.length)]!
+      char.moveTo(pick.col, pick.row)
     }
   }
 

@@ -24,7 +24,8 @@ const COLORS: Record<TileType, number> = {
 export class TileMap {
   public container: Container
   private waterFrame = 0
-  private waterTiles: Graphics[] = []
+  /** Animated water/fishing tiles — redrawn each frame with shifting waves. */
+  private waterTiles: Array<{ g: Graphics; type: TileType; col: number; row: number }> = []
 
   constructor() {
     this.container = new Container()
@@ -44,7 +45,7 @@ export class TileMap {
         this.container.addChild(g)
 
         if (tile === 'water' || tile === 'fishing_spot') {
-          this.waterTiles.push(g)
+          this.waterTiles.push({ g, type: tile, col, row })
         }
       }
     }
@@ -106,13 +107,23 @@ export class TileMap {
     g.rect(0, 0, TILE_SIZE, TILE_SIZE).stroke({ color: 0x000000, alpha: 0.06, width: 0.5 })
   }
 
-  private drawWater(g: Graphics, color: number) {
+  private drawWater(g: Graphics, color: number, phase = 0) {
     g.rect(0, 0, TILE_SIZE, TILE_SIZE).fill(color)
-    // Wave lines
-    g.moveTo(4, 10).lineTo(12, 8).lineTo(20, 10).lineTo(28, 8)
-      .stroke({ color: 0x5bb8e8, width: 1.5, alpha: 0.5 })
-    g.moveTo(2, 22).lineTo(10, 20).lineTo(18, 22).lineTo(26, 20)
-      .stroke({ color: 0x5bb8e8, width: 1.5, alpha: 0.5 })
+    // Animated wave lines — y-offset is a sin wave so adjacent water tiles
+    // appear to ripple in/out of phase, giving a sense of moving sea.
+    const w1 = Math.sin(phase) * 2
+    const w2 = Math.sin(phase * 1.3 + 1.6) * 2
+    g.moveTo(4, 10 + w1).lineTo(12, 8 + w1).lineTo(20, 10 + w1).lineTo(28, 8 + w1)
+      .stroke({ color: 0x5bb8e8, width: 1.5, alpha: 0.55 })
+    g.moveTo(2, 22 + w2).lineTo(10, 20 + w2).lineTo(18, 22 + w2).lineTo(26, 20 + w2)
+      .stroke({ color: 0x7fc8f0, width: 1.5, alpha: 0.5 })
+
+    // Periodic shimmer dot — twinkles into existence based on phase.
+    const shimmer = Math.max(0, Math.sin(phase * 0.8))
+    if (shimmer > 0.55) {
+      g.circle(8 + Math.sin(phase) * 4, 6, 1).fill({ color: 0xffffff, alpha: shimmer * 0.5 })
+      g.circle(24 - Math.sin(phase) * 3, 26, 1).fill({ color: 0xffffff, alpha: shimmer * 0.4 })
+    }
   }
 
   private drawSandDots(g: Graphics) {
@@ -133,6 +144,34 @@ export class TileMap {
     ]
     for (const [bx, by] of blades) {
       g.moveTo(bx!, by!).lineTo(bx! - 2, by! - 5).stroke({ color: 0x4a8332, width: 1, alpha: 0.5 })
+    }
+
+    // Sprinkle small flowers on roughly 1 in 5 grass tiles for visual variety.
+    const decorRoll = (col * 31 + row * 17) % 5
+    if (decorRoll === 0) {
+      // Yellow flower
+      const fx = 8 + (col % 3) * 3
+      const fy = 18 + (row % 4)
+      g.circle(fx, fy, 1.4).fill(0xffe066)
+      g.circle(fx - 2, fy, 0.9).fill({ color: 0xffe066, alpha: 0.85 })
+      g.circle(fx + 2, fy, 0.9).fill({ color: 0xffe066, alpha: 0.85 })
+      g.circle(fx, fy - 2, 0.9).fill({ color: 0xffe066, alpha: 0.85 })
+      g.circle(fx, fy + 2, 0.9).fill({ color: 0xffe066, alpha: 0.85 })
+      g.circle(fx, fy, 0.6).fill(0xc8771f)
+    } else if (decorRoll === 1) {
+      // Red/pink flower
+      const fx = 22 - (col % 2) * 3
+      const fy = 22 - (row % 3)
+      g.circle(fx, fy, 1.2).fill(0xff7099)
+      g.circle(fx, fy, 0.5).fill(0xfff0a8)
+    } else if (decorRoll === 2) {
+      // Mushroom — adds whimsy
+      const mx = 24
+      const my = 24
+      g.rect(mx - 1, my, 2, 3).fill(0xeee2c4)
+      g.ellipse(mx, my, 3, 2).fill(0xc04848)
+      g.circle(mx - 1, my - 0.5, 0.5).fill(0xfff0d8)
+      g.circle(mx + 1, my, 0.4).fill(0xfff0d8)
     }
   }
 
@@ -185,13 +224,15 @@ export class TileMap {
     g.ellipse(12, 14, 4, 3).fill({ color: 0xaaaaaa, alpha: 0.6 })
   }
 
-  private drawFishingSpot(g: Graphics) {
-    this.drawWater(g, 0x1a7ab5)
-    // Fish icon
-    g.ellipse(16, 16, 6, 3).fill({ color: 0xffaa44, alpha: 0.7 })
-    g.poly([22, 16, 26, 12, 26, 20]).fill({ color: 0xffaa44, alpha: 0.7 })
-    // Sparkle
-    g.circle(10, 10, 2).fill({ color: 0xffffff, alpha: 0.5 })
+  private drawFishingSpot(g: Graphics, phase = 0) {
+    this.drawWater(g, 0x1a7ab5, phase)
+    // Fish icon with subtle bob from the same phase as the wave
+    const bob = Math.sin(phase * 1.2) * 1.5
+    g.ellipse(16, 16 + bob, 6, 3).fill({ color: 0xffaa44, alpha: 0.8 })
+    g.poly([22, 16 + bob, 26, 12 + bob, 26, 20 + bob]).fill({ color: 0xffaa44, alpha: 0.8 })
+    // Sparkle that pulses
+    const sparkle = 0.3 + (Math.sin(phase * 1.7) * 0.5 + 0.5) * 0.5
+    g.circle(10, 10, 2).fill({ color: 0xffffff, alpha: sparkle })
   }
 
   private drawCave(g: Graphics) {
@@ -251,12 +292,20 @@ export class TileMap {
     this.container.addChild(ship)
   }
 
-  /** Animate water tiles (called each frame) */
+  /** Animate water tiles (called each frame) — redraws waves with a moving phase. */
   public update(delta: number) {
-    this.waterFrame += delta * 0.02
-    // Subtle alpha oscillation on water tiles
-    for (const wt of this.waterTiles) {
-      wt.alpha = 0.92 + 0.08 * Math.sin(this.waterFrame + wt.x * 0.05 + wt.y * 0.03)
+    this.waterFrame += delta * 0.04
+    for (const { g, type, col, row } of this.waterTiles) {
+      // Per-tile phase offset so neighbouring tiles ripple out of sync.
+      const phase = this.waterFrame + col * 0.55 + row * 0.4
+      g.clear()
+      if (type === 'water') {
+        this.drawWater(g, COLORS.water, phase)
+      } else {
+        this.drawFishingSpot(g, phase)
+      }
+      // Re-apply the subtle grid line (drawTile adds it; we cleared it above).
+      g.rect(0, 0, TILE_SIZE, TILE_SIZE).stroke({ color: 0x000000, alpha: 0.06, width: 0.5 })
     }
   }
 
