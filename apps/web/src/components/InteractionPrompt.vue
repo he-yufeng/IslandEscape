@@ -31,6 +31,10 @@ const promptText = computed(() => {
       return isTrade
         ? 'Press E to trade with the ship'
         : '(Trade phase only)'
+    case 'dungeon':
+      return isTrade
+        ? 'Press E to enter the dungeon (costs 1 trade slot)'
+        : '(Trade phase only)'
     default:
       return ''
   }
@@ -47,6 +51,8 @@ const promptIcon = computed(() => {
       return 'FARM'
     case 'merchant':
       return 'SHIP'
+    case 'dungeon':
+      return 'CAVE'
     default:
       return ''
   }

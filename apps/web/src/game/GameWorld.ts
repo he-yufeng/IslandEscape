@@ -137,6 +137,7 @@ export type InteractionType =
   | { kind: 'fish' }
   | { kind: 'farm' }
   | { kind: 'merchant' }
+  | { kind: 'dungeon' }
   | null
 
 export type GameWorldEventCallback = (event: GameWorldEvent) => void
@@ -311,6 +312,9 @@ export class GameWorld {
             break
           case 'merchant':
             interaction = { kind: 'merchant' }
+            break
+          case 'dungeon':
+            interaction = { kind: 'dungeon' }
             break
         }
         if (interaction) {

@@ -13,6 +13,7 @@ export type TileType =
   | 'rock'
   | 'fishing_spot'
   | 'path'
+  | 'cave'
 
 export const TILE_SIZE = 32
 export const MAP_COLS = 20
@@ -25,6 +26,7 @@ export function isWalkable(tile: TileType): boolean {
     case 'house':
     case 'tree':
     case 'rock':
+    case 'cave':
       return false
     default:
       return true
@@ -40,6 +42,8 @@ export function getInteraction(tile: TileType): string | null {
       return 'farm'
     case 'dock':
       return 'merchant'
+    case 'cave':
+      return 'dungeon'
     default:
       return null
   }
@@ -58,13 +62,14 @@ const MAP_KEY: Record<string, TileType> = {
   R: 'rock',
   X: 'fishing_spot',
   P: 'path',
+  C: 'cave',
 }
 
 // 20 columns x 15 rows island map
 const MAP_RAW: string[] = [
   'WWWWWWWWWWWWWWWWWWWW', // row 0
   'WWWWSSSSSSSSSSSSWWWW', // row 1
-  'WWSSSGTTTGGGRGSSWWWW', // row 2
+  'WWSSSGCTTGGGRGSSWWWW', // row 2
   'WWSSGGGPGGGGGGSSWWWW', // row 3
   'WWSGGHPPHGGRGGSSWWWW', // row 4
   'WWSGGPPPPPGGGGXSWWWW', // row 5
@@ -113,6 +118,7 @@ export const LOCATIONS = {
   fishing_spot_2: { col: 1, row: 8 },
   farmland: { col: 13, row: 8 },
   merchant_ship: { col: 17, row: 9 },
+  dungeon: { col: 6, row: 2 },
 } as const
 
 /** AI movement targets for different actions */
