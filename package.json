@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "concurrently -n web,server -c cyan,green \"pnpm --filter @game/web dev\" \"pnpm --filter @game/server dev\"",
+    "start": "pnpm --filter @game/server start",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",

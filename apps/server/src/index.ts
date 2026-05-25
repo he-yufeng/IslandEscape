@@ -1,7 +1,8 @@
 import { createApp } from './app'
+import { env } from './env'
 
-const host = '127.0.0.1'
-const port = 8787
+const host = env.HOST
+const port = env.PORT
 
 const app = await createApp()
 

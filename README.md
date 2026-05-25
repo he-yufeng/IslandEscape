@@ -105,6 +105,16 @@ OPENAI_MODEL=deepseek/deepseek-chat
 If NPC dialogue is slow, the game is waiting for the external model API. The
 game state and resource rules are still validated by the backend.
 
+For a production-style single-process run:
+
+```bash
+pnpm build
+pnpm start
+```
+
+Set `HOST=0.0.0.0` and `PORT=<provider-port>` when deploying to a public Node
+server. The Fastify server serves both `/api/*` and the built web app.
+
 ### Requirements
 
 - Node.js >= 22.12

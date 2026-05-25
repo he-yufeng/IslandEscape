@@ -35,6 +35,24 @@ DB_FILE_NAME=file:local.db
 LOG_LEVEL=info
 ```
 
+## Production-Style Start
+
+For a single-process Node deployment, build first and then start the Fastify
+server. The server will serve both `/api/*` and the built web app from
+`apps/web/dist`.
+
+```bash
+pnpm build
+pnpm start
+```
+
+For a public server, set:
+
+```text
+HOST=0.0.0.0
+PORT=<provider-port-or-8787>
+```
+
 ## What To Try First
 
 1. Click `NEW GAME`.
