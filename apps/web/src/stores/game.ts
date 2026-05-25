@@ -11,6 +11,7 @@ import type {
 import { friendshipKey } from '@game/shared'
 import { createGame, submitAction as apiSubmitAction, getSSEUrl } from '@/composables/useApi'
 import type { InteractionType } from '@/game/GameWorld'
+import { startIslandBGM, stopBGM } from '@/game/dungeon/AudioManager'
 
 export interface NegotiationState {
   conversationId: string
@@ -104,6 +105,7 @@ export const useGameStore = defineStore('game', () => {
   // ---- Actions ----
   async function newGame() {
     disconnectSSE()
+    startIslandBGM()
     isLoading.value = true
     events.value = []
     activeNegotiation.value = null

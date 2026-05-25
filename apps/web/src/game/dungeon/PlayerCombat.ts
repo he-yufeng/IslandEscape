@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js'
 import type { InputManager } from '../InputManager'
 import type { CardEffects } from './CardSystem'
+import { playPlayerHit } from './AudioManager'
 
 const ARENA_W = 640
 const ARENA_H = 480
@@ -88,6 +89,7 @@ export class PlayerCombat {
 
   takeDamage(amount: number): boolean {
     if (Date.now() < this.invincibleUntil) return false
+    playPlayerHit()
     this.hp = Math.max(0, this.hp - amount)
     this.invincibleUntil = Date.now() + INVINCIBILITY_MS
     this.flashTimer = INVINCIBILITY_MS

@@ -14,6 +14,11 @@ import {
   HitStop,
   ScreenFlash,
 } from './Effects'
+import {
+  playShoot, playFlash, playUltimate, playBossHit, playPlayerHit,
+  playBossShoot, playCardPick, playXPCollect, playBossDefeated,
+  playPlayerDied, startDungeonBGM, stopBGM,
+} from './AudioManager'
 
 interface FlashEffectData {
   gfx: Graphics
@@ -132,6 +137,7 @@ export class DungeonArena extends Container {
   }
 
   init(dayLevel = 1) {
+    startDungeonBGM()
     this.dayLevel = Math.max(1, Math.floor(dayLevel))
     this.drawArena()
 
@@ -166,6 +172,8 @@ export class DungeonArena extends Container {
     }
     this.boss.onDeathComplete = () => {
       this.bossDeathPending = false
+      stopBGM()
+      playBossDefeated()
       this.fire({
         type: 'boss_defeated',
         damageDealt: this.totalDamageDealt,
@@ -346,6 +354,7 @@ export class DungeonArena extends Container {
   }
 
   spawnFlashEffect(startX: number, startY: number, endX: number, endY: number) {
+    playFlash()
     const gfx = new Graphics()
     this.effectsLayer.addChild(gfx)
     this.flashEffects.push({ gfx, age: 0, duration: 0.35, startX, startY, endX, endY })
@@ -395,6 +404,7 @@ export class DungeonArena extends Container {
   }
 
   private playerUltimate() {
+    playUltimate()
     const count = 12
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count
@@ -415,6 +425,7 @@ export class DungeonArena extends Container {
   }
 
   private bossShoot(angle: number, count: number, speedMul = 1) {
+    playBossShoot()
     const spread = 0.3
     const startAngle = angle - (spread * (count - 1)) / 2
     const dmg = this.boss.scaledBulletDamage()
@@ -468,6 +479,7 @@ export class DungeonArena extends Container {
 
   /** Trigger card picker */
   triggerCardPick(): CardDef[] {
+    playCardPick()
     const cards = pickRandomCards(this.cardSystem, 3)
     this.paused = true
     this.fire({ type: 'card_pick', cards })
@@ -531,6 +543,7 @@ export class DungeonArena extends Container {
     ) {
       const angle = Math.atan2(mouseY - this.player.y, mouseX - this.player.x)
       this.player.markShot(now, angle)
+      playShoot()
       const effects = this.player.effects
 
       for (let i = 0; i < effects.bulletCount; i++) {
@@ -643,6 +656,7 @@ export class DungeonArena extends Container {
         const gained = orb.value
         const levelUpTriggered = addXP(this.cardSystem, gained)
         this.damageNumbers.spawn(this.player.x, this.player.y - 14, `+${gained}`, 0x44ff66, { fontSize: 11 })
+        playXPCollect()
         orb.despawn()
         if (levelUpTriggered) {
           this.triggerCardPick()
@@ -684,6 +698,8 @@ export class DungeonArena extends Container {
       this.active = false
       this.screenFlash.trigger(0.6, 0.7, 0xff3030)
       this.shaker.trigger(8, 0.4)
+      stopBGM()
+      playPlayerDied()
       this.fire({
         type: 'player_died',
         damageDealt: this.totalDamageDealt,
@@ -1001,6 +1017,7 @@ export class DungeonArena extends Container {
   getCardSystem(): CardSystemState { return this.cardSystem }
 
   destroyArena() {
+    stopBGM()
     this.active = false
     this.position.set(0, 0)
     this.player?.destroy()

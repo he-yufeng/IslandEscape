@@ -7,6 +7,7 @@ import { GameWorld } from './GameWorld'
 import { DungeonArena } from './dungeon/DungeonArena'
 import type { DungeonEvent } from './dungeon/DungeonArena'
 import { MAP_COLS, MAP_ROWS, TILE_SIZE } from './tiles'
+import { startIslandBGM } from './dungeon/AudioManager'
 
 export class GameRenderer {
   public app: Application
@@ -88,6 +89,7 @@ export class GameRenderer {
     this.dungeon.destroyArena()
     this.world.worldContainer.visible = true
     this.world.setInputEnabled(true)
+    startIslandBGM()
   }
 
   isDungeonActive(): boolean {

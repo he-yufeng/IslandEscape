@@ -1,4 +1,5 @@
 import { Container, Graphics } from 'pixi.js'
+import { playBossHit } from './AudioManager'
 import { GAME_CONFIG } from '@game/shared'
 
 const ARENA_W = 640
@@ -100,6 +101,7 @@ export class Boss {
   takeDamage(amount: number) {
     if (!this.active) return
     if (this.state === 'dying' || this.state === 'dead') return
+    playBossHit()
     this.hp = Math.max(0, this.hp - amount)
     this.eyeGlow = 0.4
     this.hitFlashTimer = HIT_FLASH_DURATION
