@@ -6,6 +6,15 @@ not something to read word for word.
 
 Target: 6-7 minutes.
 
+## What The Teacher Is Likely Expecting
+
+- They want to watch the game being played, not a report summary.
+- PPT/video are backup only. Use them only if the teacher asks or if the live
+  game gets blocked.
+- Leave 1-2 minutes for questions after the live play.
+- Make sure all teammates are present. If asked about a specific part, let the
+  teammate who implemented it answer one sentence, then continue the demo.
+
 ## Demo Route
 
 1. Title screen -> `NEW GAME`.
@@ -18,6 +27,17 @@ Target: 6-7 minutes.
 8. End turn and show AI actions / event log.
 9. If possible, enter dungeon and show 20-40 seconds of combat.
 10. Close with the architecture sentence.
+11. Stop talking and let the teacher ask questions.
+
+## Team Speaking Split
+
+- He Yufeng: main live demo, AI architecture, validation, overall design.
+- Xu Junjie: dialogue / interaction bug fixes and player-facing flow.
+- Yu Erfei: boss dungeon, day-scaled difficulty, sound effects, gameplay polish.
+- Long Huzhiyuan: 3D preview, rendering, UI panel, visual polish.
+
+If the teacher asks "who did what", answer briefly and do not turn it into a
+long report.
 
 ## 0:00-0:25 - Start
 
@@ -224,6 +244,25 @@ Say:
 >
 > Thank you.
 
+Then stop. Do not continue explaining unless the teacher asks.
+
+## If PPT Or Video Comes Up
+
+If the teacher asks whether there is a PPT:
+
+> Yes, we prepared one, but for this session I will mainly show the playable
+> build because it explains the interaction better.
+
+If the live demo breaks:
+
+> I can switch to the short demo video to show the intended full path, but the
+> code package is also runnable and the same flow is implemented in the game.
+
+If someone asks why no long slide explanation:
+
+> The assignment presentation is closer to a playtest, so I am using the game
+> itself as the presentation artifact.
+
 ## If Something Goes Wrong
 
 LLM response is slow:
@@ -273,3 +312,18 @@ What was the hardest engineering part?
 
 > Keeping asynchronous LLM behavior responsive in the UI while preserving a
 > server-authoritative state machine.
+
+What did sound add?
+
+> It makes dungeon combat easier to read live: hits, attacks, and feedback are
+> noticeable without needing extra explanation.
+
+How do daily events affect gameplay?
+
+> They add controlled variation to each day, but they are deterministic engine
+> rules rather than LLM narration.
+
+What should we look at if we only have one minute?
+
+> Watch the phase flow: labor creates resources, trade spends a limited slot,
+> the LLM negotiates, and the backend validates the result.
