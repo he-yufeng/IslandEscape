@@ -1,80 +1,73 @@
-# Island Escape Live Demo: One-Page Cue Card
+# Island Escape Presentation Cue Card
 
-Use this if you only have one screen or one printed page before presenting.
+Use this as the last-minute speaking card.
+
+## Time Split
+
+- PPT: 3-4 minutes.
+- Video: 2 minutes.
+- Live game: 1-2 minutes.
+
+The PPT explains the design. The video shows the complete path. The live game
+proves the build is real and runnable.
 
 ## Core Message
 
 Island Escape is a playable AI negotiation game.
 
-- Resources create pressure: fish and wheat keep characters alive.
-- Coins create the goal: first to 100 coins escapes.
-- LLMs create social behavior: NPCs negotiate with personality.
-- The backend protects correctness: rules, resources, phases, and trades are deterministic.
+- Resources create pressure.
+- Trade slots create decisions.
+- LLM NPCs create social behavior.
+- The backend keeps rules fair and deterministic.
 
-## 7-Minute Route
+## PPT Route
 
-1. Start from title screen and click `NEW GAME`.
-2. Show HUD: day, fish, wheat, coins, trade slots, phase, daily event.
-3. Move with `WASD`; interact with `E`.
-4. Do labor first: fish or farm.
-5. Talk to one NPC and send a short message.
-6. While the NPC thinks, explain LLM latency and optimistic UI.
-7. End turn and show AI actions / event log.
-8. Enter dungeon if possible; show movement, sound, combat, `Space`, `Q`.
-9. Close with the architecture sentence.
-10. Stop and take questions.
+1. Title and goal: survive, trade, reach 100 coins.
+2. Design problem: AI dialogue needs a real game loop.
+3. Gameplay loop: labor -> trade -> AI turns -> settlement.
+4. AI negotiation: LLM gives personality, not game-state authority.
+5. Architecture: frontend UI/gameplay, backend validation/model calls, shared schemas.
+6. Polish: 3D preview, dungeon, boss scaling, sound effects.
 
-## Best Short Lines
+## Video Voiceover
 
 Opening:
 
-> I will present by playing the game directly. The goal is to survive, trade, and become the first character to collect 100 coins.
+> The video shows the complete intended flow more smoothly than waiting for
+> every model call live.
 
-LLM line:
+NPC line:
 
-> The LLM controls dialogue and intention, but it does not own the game state.
-
-Engineering line:
-
-> The model creates social behavior; deterministic backend code owns fairness and validation.
+> The player can use natural language, but the backend still validates the
+> actual trade.
 
 Dungeon line:
 
-> The dungeon is a risk-reward shortcut to coins, but it costs a trade slot and can cost resources if I lose.
+> The dungeon is a risk-reward route to coins, still tied to trade slots and
+> resources.
 
-Closing:
+## Live Game Route
 
-> This is not just a chatbot. It is a playable game loop where negotiation changes economic decisions.
+1. Open the running game.
+2. Click `NEW GAME`.
+3. Move with `WASD`.
+4. Press `E` near one target.
+5. Send one NPC message only if it is quick.
+6. Stop before waiting too long.
 
-## If The Demo Is Slow
+## Must Say
 
-NPC response slow:
+> The model creates social behavior; deterministic backend code owns fairness
+> and validation.
 
-> This is an external model call. The important part is that the UI shows the pending state and the backend keeps the game state safe.
+## If Something Is Slow
 
-Cannot reach dungeon:
-
-> Dungeon is trade-phase only and costs one trade slot, so I will explain it rather than forcing the path live.
-
-Boss fight goes badly:
-
-> Losing is meaningful because it costs resources. The risk is part of the economy.
-
-Need to use video:
-
-> I will switch to the short video only to show the full path; the same behavior is implemented in the playable build.
+> I will not wait for the full model response here because the video already
+> showed the complete path. This is the same live build.
 
 ## Team Q&A Routing
 
-- He Yufeng: AI architecture, state validation, overall design, integration.
+- He Yufeng: AI architecture, validation, integration, presentation.
 - Xu Junjie: dialogue and player interaction fixes.
 - Yu Erfei: boss dungeon, day scaling, sound effects, combat polish.
 - Long Huzhiyuan: 3D preview, rendering, UI panel, visual polish.
-
-## Must Not Forget
-
-- Do not spend too long in tutorial.
-- Do not wait silently during LLM calls.
-- Do not over-explain the report.
-- Do not promise the executable package; submit/rerun the source package.
-- Leave time for teacher questions.
