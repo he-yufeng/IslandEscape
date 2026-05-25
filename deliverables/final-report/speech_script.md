@@ -1,122 +1,140 @@
-# Live Gameplay Demo Script
+# Island Escape Live Gameplay Script
 
-Presentation mode: **play the game live**. Do not walk through the report or PPT.
-Use the screen as the structure. Speak naturally; the text below is a cue card,
-not something to read word for word.
+Mode: **play the game live**. Do not present the report. Do not walk through the
+PPT unless the teacher asks for it. Use the screen as the structure.
 
-Target: 6-7 minutes.
+Target length: 5-7 minutes, then stop and let the teacher ask questions.
 
-## What The Teacher Is Likely Expecting
+## Presenter Mindset
 
-- They want to watch the game being played, not a report summary.
-- PPT/video are backup only. Use them only if the teacher asks or if the live
-  game gets blocked.
-- Leave 1-2 minutes for questions after the live play.
-- Make sure all teammates are present. If asked about a specific part, let the
-  teammate who implemented it answer one sentence, then continue the demo.
+The strongest version of this presentation is not "we built an AI chatbot".
+The strongest version is:
 
-## Demo Route
+> We built a playable survival economy where LLM agents create negotiation and
+> personality, while deterministic game code keeps the rules fair.
 
-1. Title screen -> `NEW GAME`.
-2. Close/skim tutorial.
-3. Point out HUD: day, resources, coins, trade slots, phase, daily event.
-4. Move with `WASD`.
-5. Do labor with `E` near fishing/farming.
-6. Talk to one NPC and send a message.
-7. While LLM thinks, explain optimistic UI and server validation.
-8. End turn and show AI actions / event log.
-9. If possible, enter dungeon and show 20-40 seconds of combat.
-10. Close with the architecture sentence.
-11. Stop talking and let the teacher ask questions.
+Keep returning to that idea while playing.
 
-## Team Speaking Split
+Do not over-explain every system. Show one good example of each:
 
-- He Yufeng: main live demo, AI architecture, validation, overall design.
-- Xu Junjie: dialogue / interaction bug fixes and player-facing flow.
-- Yu Erfei: boss dungeon, day-scaled difficulty, sound effects, gameplay polish.
+- movement and spatial interaction;
+- labor and resource pressure;
+- NPC negotiation;
+- AI turn / event log;
+- dungeon risk-reward if it is quick to reach;
+- backend validation and model separation.
+
+## Team Split If Asked
+
+- He Yufeng: live demo, AI architecture, backend validation, integration.
+- Xu Junjie: dialogue flow, player interaction fixes, UI experience.
+- Yu Erfei: boss dungeon, day scaling, combat polish, sound effects.
 - Long Huzhiyuan: 3D preview, rendering, UI panel, visual polish.
 
-If the teacher asks "who did what", answer briefly and do not turn it into a
-long report.
+If the teacher asks "who did what", answer in one sentence and continue playing.
 
-## 0:00-0:25 - Start
+## Live Route
+
+1. Title screen -> `NEW GAME`.
+2. Show the HUD: day, fish, wheat, coins, trade slots, phase, daily event.
+3. Move with `WASD`.
+4. Press `E` near a labor target.
+5. Talk to one NPC and send a short message.
+6. While the NPC thinks, explain model latency and state safety.
+7. End turn and show AI actions / event log.
+8. Show dungeon only if the path is quick.
+9. Close with the architecture sentence.
+10. Stop and take questions.
+
+## 0:00-0:20 - Opening
 
 Action:
 
-- Show title screen.
+- Start from the title screen.
 - Click `NEW GAME`.
 
 Say:
 
-> Good morning. I will present this project by playing it directly.
+> Good morning. I will present this by playing the game directly, because the
+> main contribution is the interaction loop.
 >
-> This is Island Escape, a survival trading game with LLM-driven NPCs. The goal
-> is to survive on the island and become the first character to collect 100
-> coins and escape.
+> This is Island Escape. The goal is simple: survive on the island, trade with
+> other characters, and become the first one to collect 100 coins and escape.
 >
-> What we are demonstrating is not just a chat interface. It is a game economy
-> where conversation, resources, and risk are connected.
+> The part I care about most is that this is not just a chatbot with a game
+> background. It is a small survival economy where conversation changes actual
+> decisions.
 
-## 0:25-1:05 - First Screen
+If the teacher says to just play:
+
+> Sure. I will keep the explanation short and talk only about what is happening
+> on screen.
+
+## 0:20-0:55 - Explain The Screen
 
 Action:
 
-- On the game screen, point to resources, coins, day, phase hint, trade slots,
-  daily event badge if present, and NPCs.
-- Close the tutorial if it blocks the map.
+- Point to the HUD while moving lightly.
+- Mention resources, coins, phase, trade slots, and daily event.
 
 Say:
 
-> Here is the main game loop. I have fish, wheat, and coins. Fish and wheat keep
-> me alive at night; coins are the escape objective.
+> Here, fish and wheat are survival resources. Every character needs them at
+> night. Coins are the win condition.
 >
-> Each day has a rhythm: first labor, then trade, then the AI characters act,
-> then settlement happens. The game is intentionally readable, so the audience
-> can follow the decisions while I play.
+> The day is split into phases. First I need to do labor, then I can trade, then
+> the AI characters take their turns, and finally the day settles.
+>
+> The trade slots are important. They make negotiation a real game decision,
+> because talking, selling, and entering the dungeon all compete for the same
+> limited budget.
 
-Optional if daily event is visible:
+If a daily event is visible:
 
-> This badge is today's event. Events such as storm, festival, lucky catch, and
-> drought change the economy, but they are still deterministic rules controlled
-> by the game engine.
+> This event changes today's economy. It is not LLM narration; it is a rule in
+> the game engine, so the result is predictable and testable.
 
-## 1:05-1:45 - Movement And Labor
+## 0:55-1:35 - Movement And Labor
 
 Action:
 
 - Move with `WASD`.
 - Walk to fishing or farming.
-- Press `E` to interact.
-- Prefer fishing if nearby because it is fast.
+- Press `E`.
+- Prefer fishing if nearby because it resolves immediately.
 
 Say:
 
-> I move with WASD. Before trading, I must do labor.
+> Movement is deliberately spatial. I need to walk to a place or a character
+> before interacting, instead of doing everything from a menu.
 >
-> Fishing gives immediate fish. Farming gives delayed wheat. So even this first
-> step has a small survival decision: do I secure today or invest for later?
+> I will fish here because it gives immediate resources and gets us into the
+> trade phase quickly.
 >
-> I will fish here so we can enter the trade phase quickly.
+> This first step already creates a small tradeoff: fishing helps today, farming
+> is slower but supports later survival.
 
 After labor:
 
-> Now the phase changed to trade. This phase system is important. The UI guides
-> the player, but the backend is the actual source of truth and rejects illegal
-> actions.
+> Now the phase changes to trade. The frontend guides me, but the backend is the
+> source of truth. If I try an illegal action, the server rejects it rather than
+> trusting the UI.
 
-## 1:45-3:10 - NPC Negotiation
+## 1:35-3:00 - NPC Negotiation
 
 Action:
 
-- Walk to an NPC.
-- Press `E` to open dialogue.
-- Send one short message. Good examples:
+- Walk to one NPC.
+- Press `E`.
+- Send one short message.
+
+Recommended message:
 
 ```text
 I need wheat to survive tonight. Can you help me? I can offer fish if the deal is fair.
 ```
 
-or:
+Alternative if you want alliance flavor:
 
 ```text
 I want to build an alliance. What would you trade for one fish?
@@ -124,206 +142,215 @@ I want to build an alliance. What would you trade for one fish?
 
 Say before sending:
 
-> Now I will negotiate with an NPC. This is where the LLM is useful: the
-> character can respond with personality, not just a fixed menu.
+> This is the LLM part. Each NPC has a personality, so the response is not just
+> a fixed button menu.
 >
-> But the model does not directly edit the game state. It can speak, propose,
-> accept, or reject, while the server validates whether the trade is actually
-> legal.
+> But I do not let the model own the game state. The model can speak and suggest
+> an intention. The server still validates resources, phase, trade slots, and
+> whether the deal is legal.
 
 Say while waiting:
 
-> The thinking state matters. Earlier, an LLM delay could look like the game was
-> frozen. Now my message appears immediately, and the NPC response arrives when
-> the backend finishes the model call.
+> There is always some latency because this calls an external model. We made the
+> pending state visible so the player knows the game is thinking instead of
+> frozen.
 >
-> This makes model latency visible instead of confusing.
+> From an engineering point of view, that was important: asynchronous AI should
+> feel like part of the interface, not like the UI has broken.
 
 Say after response:
 
-> The text is generated, but the resource ledger is still deterministic. If a
-> trade happens, the server checks both sides' fish, wheat, coins, phase, and
-> trade slots before applying it.
+> The personality comes from the model, but the resource ledger is deterministic.
+> That separation is the main design principle: AI gives behavior; the engine
+> keeps fairness.
 
 If the LLM is too slow:
 
-> If the model is slow today, the important point is still visible here: the UI
-> keeps the interaction pending instead of silently failing, and the rest of the
-> game state remains stable.
+> I will not wait silently for the model. The key point is that the game keeps
+> the message pending and the backend state remains safe while the model call is
+> running.
 
-## 3:10-3:50 - Trade Slots And Merchant
+If the NPC refuses:
+
+> A refusal is also useful. The NPC is not only a vending machine; it can protect
+> its own resources or bargain based on personality.
+
+## 3:00-3:45 - Merchant / Trade Slots
 
 Action:
 
-- If near merchant, show merchant interaction.
-- Otherwise point to trade slots and explain merchant selling.
+- If near merchant, interact with merchant.
+- If not, point to trade slots and explain the merchant role.
 
 Say:
 
-> Trade slots are the daily action budget. Talking to NPCs, selling to the
-> merchant, and entering the dungeon all compete for the same limited resource.
+> The merchant is the stable economic route: selling resources turns survival
+> goods into coins.
 >
-> This is what makes the AI interaction part of a game. Conversation is not
-> unlimited chat; it has an economic cost.
+> NPC negotiation is less predictable, but can be strategically better. That is
+> why the AI matters: it creates a social layer on top of the economy.
+>
+> Every trade action costs a slot, so I cannot just talk forever. The game forces
+> me to choose what is worth spending time on.
 
-## 3:50-4:40 - End Turn And AI Turns
+## 3:45-4:40 - End Turn And AI Actions
 
 Action:
 
 - Click `End Turn`.
-- Let AI actions run for a short time.
-- Point to movement, event log, and resource changes.
+- Let AI actions run.
+- Point to the event log and any movement/resource changes.
 
 Say:
 
-> I will end my turn so the AI islanders can act.
+> I will end my turn now so the AI islanders act.
 >
-> Each AI also needs to labor and then decide how to use trade slots. The LLM can
-> help decide intention, but the same game rules still apply to every character.
+> They go through the same structure: labor, trade decisions, then settlement.
+> The important part is that the AI characters are not exempt from the rules.
+> They use the same economy as the player.
 >
-> The event log and animations are here so AI behavior does not feel hidden. You
-> can see that the island is still moving even when the player is waiting.
+> The event log is here because AI behavior should be inspectable. Even if the
+> character logic is partly generated, the player can still see what happened.
 
-## 4:40-5:55 - Boss Dungeon
+If AI turn takes time:
+
+> I will use this moment to point out that we intentionally keep the game state
+> server-authoritative. Even during AI turns, the frontend is just displaying
+> the result of validated backend actions.
+
+## 4:40-5:55 - Dungeon, If Available
 
 Action:
 
-- If in trade phase and close enough, enter dungeon.
-- Show movement, auto/combat shooting, minions, boss warning, XP/cards.
-- Mention controls: `WASD` move, `Space` flash, `Q` ultimate.
-- Do not try to finish the whole fight unless it is going well.
+- Enter dungeon only if it is quick.
+- Show movement, attacks, sound, `Space`, and `Q`.
+- Do not force a full boss clear if the fight is messy.
 
 Say:
 
-> The dungeon is the final gameplay extension. It gives the demo a more active
-> moment, but it is still tied to the island economy.
+> The dungeon is our final gameplay extension. It gives the demo a more active
+> moment, but it is still connected to the island economy.
 >
-> Entering costs one trade slot and can happen only once per day. Winning gives
-> coins; losing costs resources. So this is a risk-reward decision, not a
-> separate arcade mode.
+> Entering costs a trade slot. Winning gives coins. Losing costs resources. So
+> it is a risk-reward shortcut, not a separate mini-game pasted on top.
 >
-> The boss also scales with the day. Earlier runs are safer but pay less. Later
-> runs reward more coins but the boss becomes harder.
+> The boss also scales with the day. Earlier attempts are safer but pay less;
+> later attempts are more rewarding but harder.
 
 If sound is on:
 
-> We also added sound feedback for combat, so hits, attacks, and dungeon events
-> are easier to read during a live demo.
+> The sound effects make the combat easier to read live. You can hear hits,
+> attacks, and feedback without needing me to explain every frame.
 
-If you cannot reach dungeon in time:
+If dungeon is not available:
 
-> I will not force the full dungeon path live, because the day flow can take
-> longer depending on the model. The important design is that dungeon entry is a
-> trade-phase choice with a reward and a penalty, so it connects back to the
-> survival economy.
+> I will not force the dungeon path here because it depends on the phase and
+> trade slots. The important design is that dungeon entry competes with trading,
+> so combat is another economic choice.
 
-## 5:55-6:40 - Architecture While Game Is Visible
+## 5:55-6:35 - Architecture Close
 
 Action:
 
-- Keep playing or leave the current game screen visible.
+- Keep the game screen visible.
+- Do not switch to slides.
 
 Say:
 
-> The core engineering idea is separation of responsibilities.
+> The architecture is split very deliberately.
 >
-> The frontend renders the island, dialogue UI, 3D preview, combat, and sound.
-> The backend owns the game state, validation, persistence, and AI calls. Shared
-> schemas define the contract between the two.
+> The frontend handles the island, interaction UI, 3D preview, dungeon, and
+> sound. The backend owns the state machine, validation, persistence, and model
+> calls. Shared schemas keep the API contract typed across both sides.
 >
-> So the model creates social behavior and language, but typed deterministic
-> code owns fairness and correctness.
+> So the model is used where it is strong: language, personality, and intention.
+> The deterministic engine is used where it is necessary: fairness, resource
+> accounting, and game rules.
 
-## 6:40-7:00 - Closing
+## 6:35-6:55 - Final Sentence
 
 Say:
 
-> In short, Island Escape is a playable AI negotiation game. The player survives
-> through resources, competes through trade, and interacts with NPCs that feel
-> more like agents than menus.
+> That is the core of Island Escape: a playable AI negotiation game where
+> resources create pressure, LLM agents create social behavior, and the backend
+> keeps the game fair.
 >
-> Thank you.
+> Thank you. I am happy to answer questions.
 
-Then stop. Do not continue explaining unless the teacher asks.
+Then stop. Do not keep explaining unless asked.
 
-## If PPT Or Video Comes Up
+## If The Teacher Asks About PPT Or Report
 
-If the teacher asks whether there is a PPT:
+If asked whether there is a PPT:
 
-> Yes, we prepared one, but for this session I will mainly show the playable
-> build because it explains the interaction better.
+> Yes, we prepared one as backup, but I think the clearest way to evaluate this
+> project is to play it and see the loop directly.
+
+If asked why not walk through the report:
+
+> The report explains the design in detail. For this presentation, I want to use
+> the playable build as the evidence.
 
 If the live demo breaks:
 
-> I can switch to the short demo video to show the intended full path, but the
-> code package is also runnable and the same flow is implemented in the game.
+> I can switch to the short demo video to show the intended full path. The same
+> behavior is implemented in the submitted source package.
 
-If someone asks why no long slide explanation:
+## Short Version If Time Is Cut To 3 Minutes
 
-> The assignment presentation is closer to a playtest, so I am using the game
-> itself as the presentation artifact.
+Say this while playing:
 
-## If Something Goes Wrong
+> The shortest summary is: labor creates resources, trade converts resources
+> into strategy, LLM NPCs make negotiation dynamic, and the backend validates
+> every state change.
+>
+> The model does not control the whole game. It creates social behavior inside a
+> deterministic game engine.
 
-LLM response is slow:
+Then show:
 
-> This delay is expected because the NPC is generated by an external model. The
-> important part is that the UI shows a pending state and the backend keeps the
-> game state safe.
+1. `NEW GAME`.
+2. Labor once.
+3. Send one NPC message.
+4. End turn.
+5. Mention dungeon as the risk-reward extension.
 
-Cannot find an NPC quickly:
-
-> The island is spatial on purpose. Interaction depends on where the player is,
-> so movement is part of the negotiation loop rather than a separate menu.
-
-Cannot enter dungeon:
-
-> Dungeon is only available during the trade phase and costs a trade slot. That
-> restriction is intentional because it makes combat part of the economy.
-
-Boss fight goes badly:
-
-> Losing is also part of the design. It costs resources, so the player has to
-> decide whether the coin reward is worth the survival risk.
-
-Need to stop at 3 minutes:
-
-> The shortest summary is: labor creates resources, trading turns resources into
-> coins, LLM NPCs make negotiation dynamic, and the backend keeps all game rules
-> deterministic.
-
-## One-Sentence Answers For Questions
+## Fast Q&A Answers
 
 Why use an LLM?
 
-> Because negotiation and personality are exactly where fixed menus feel weak.
+> Because negotiation and personality are where fixed menus feel weakest. The
+> LLM makes the NPC feel less like a shop and more like another islander.
 
 Why not let the LLM control everything?
 
-> Because game state must be fair, testable, and recoverable, so the LLM only
-> proposes behavior while the engine validates rules.
-
-What is the boss for?
-
-> It adds a high-energy risk-reward path to coins without replacing the survival
-> trading loop.
+> Because game state needs to be fair and testable. The LLM can propose behavior,
+> but the engine validates the result.
 
 What was the hardest engineering part?
 
-> Keeping asynchronous LLM behavior responsive in the UI while preserving a
-> server-authoritative state machine.
+> Making asynchronous model calls feel responsive while keeping the server as
+> the source of truth.
 
-What did sound add?
+What does the dungeon add?
 
-> It makes dungeon combat easier to read live: hits, attacks, and feedback are
-> noticeable without needing extra explanation.
+> It adds a high-energy risk-reward path to coins, while still using the same
+> trade-slot economy.
 
-How do daily events affect gameplay?
+What do daily events do?
 
-> They add controlled variation to each day, but they are deterministic engine
-> rules rather than LLM narration.
+> They add variation to the economy without making the rules arbitrary.
 
-What should we look at if we only have one minute?
+What should we evaluate first?
 
-> Watch the phase flow: labor creates resources, trade spends a limited slot,
-> the LLM negotiates, and the backend validates the result.
+> Whether the loop is playable: labor, negotiation, trade slots, AI actions, and
+> deterministic validation.
+
+What if the model gives a weird answer?
+
+> The text may vary, but the game state is protected. A weird sentence does not
+> automatically create an illegal trade.
+
+What is the main technical takeaway?
+
+> AI should create behavior, not replace the game engine.
