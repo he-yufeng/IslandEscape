@@ -15,7 +15,7 @@ import {
   ScreenFlash,
 } from './Effects'
 import {
-  playShoot, playFlash, playUltimate, playBossHit, playPlayerHit,
+  playShoot, playFlash, playUltimate,
   playBossShoot, playCardPick, playXPCollect, playBossDefeated,
   playPlayerDied, startDungeonBGM, stopBGM,
 } from './AudioManager'

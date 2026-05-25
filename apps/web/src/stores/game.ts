@@ -11,7 +11,7 @@ import type {
 import { friendshipKey } from '@game/shared'
 import { createGame, submitAction as apiSubmitAction, getSSEUrl } from '@/composables/useApi'
 import type { InteractionType } from '@/game/GameWorld'
-import { startIslandBGM, stopBGM } from '@/game/dungeon/AudioManager'
+import { startIslandBGM } from '@/game/dungeon/AudioManager'
 
 export interface NegotiationState {
   conversationId: string

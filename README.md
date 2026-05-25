@@ -79,6 +79,32 @@ You're stranded on an island with four AI characters. Fish, farm, trade, and neg
 
 ## Setup
 
+### Teacher / Demo Quick Start
+
+If you received the source package directly, start here:
+
+```bash
+corepack enable pnpm
+corepack use pnpm@latest-10
+pnpm install
+cp .env.example .env
+pnpm dev
+```
+
+Then open http://localhost:5173 and click **NEW GAME**.
+
+Before `pnpm dev`, edit `.env` and provide an OpenAI-compatible key. The
+default configuration uses OpenRouter with `deepseek/deepseek-chat`:
+
+```text
+OPENAI_API_KEY=<your-openrouter-or-openai-key>
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_MODEL=deepseek/deepseek-chat
+```
+
+If NPC dialogue is slow, the game is waiting for the external model API. The
+game state and resource rules are still validated by the backend.
+
 ### Requirements
 
 - Node.js >= 22.12
