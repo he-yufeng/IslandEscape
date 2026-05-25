@@ -1,221 +1,137 @@
-# Island Escape 现场试玩手卡
+﻿# Island Escape 汇报手卡
 
-用途：老师主要看你现场玩游戏，PPT/报告不是主线。这个手卡给主讲人上台前快速扫一遍。
+用途：上台前快速扫一遍。当前策略不是一直现场玩，而是：
 
-## 一句话目标
+- PPT 讲 3-4 分钟；
+- 视频放约 2 分钟；
+- 最后现场打开游戏玩 1-2 分钟，证明 build 真实可跑。
 
-不要讲成论文汇报。核心是边玩边说明：
+## 核心一句话
 
-> 这是一个 AI NPC 生存交易游戏。LLM 负责谈判和性格，后端状态机负责规则、公平性和资源结算。
+> Island Escape is a playable AI negotiation game. Resources create survival
+> pressure, LLM agents create social behavior, and deterministic backend code
+> keeps the game fair.
 
-## 上台前检查
+中文理解：
 
-- 所有人到场，尤其是能回答自己模块的人。
-- 游戏已经打开在标题页或新游戏初始页。
-- 终端不要抢屏，只保留后台运行。
-- API key 已配置，LLM 能慢但不能完全没响应。
-- 声音可以开一点，但不要盖过讲话。
-- PPT 和视频只作为备份，不主动打开。
+> 这是一个可玩的 AI 谈判生存游戏。资源制造生存压力，LLM 让 NPC 有社交行为，后端确定性规则保证公平和状态正确。
 
-## 7 分钟流程
+## 总时间节奏
 
-### 0:00-0:25 开场
+### 0:00-3:35 PPT
 
-操作：
+PPT 的任务是讲清楚设计和工程思路，不要念报告。
 
-- 展示标题页。
-- 点 `NEW GAME`。
+1. 标题和目标：survive, trade, reach 100 coins。
+2. 设计动机：AI dialogue 需要真实游戏循环支撑。
+3. 核心循环：labor -> trade -> AI turns -> settlement。
+4. AI negotiation：LLM 负责 personality / language / intention。
+5. Engineering architecture：frontend 展示，backend 验证，Zod schema 连接。
+6. Polish：3D preview, boss dungeon, sound effects, validation。
 
-说法：
+过渡句：
 
-> I will present by playing the game directly.
-> The goal is to survive, trade, and become the first character to collect 100 coins.
-> The key idea is that negotiation is powered by LLM agents, but the game rules are deterministic.
+> I will now play the short video. It shows the full intended flow more smoothly
+> than waiting for every model call live.
 
-### 0:25-1:05 解释主界面
+### 3:35-5:35 视频
 
-操作：
+不要逐帧讲。只抓几个关键节点。
 
-- 指 HUD：day、fish、wheat、coins、trade slots、phase。
-- 如果 tutorial 挡住就快速关掉。
+开头：
 
-说法：
+> The video shows the complete intended flow more smoothly than waiting for every
+> model call live.
 
-> Fish and wheat keep me alive. Coins are the escape objective.
-> Each day has a rhythm: labor, trade, AI turns, and settlement.
-> This is why it is a game loop, not just a chatbot.
+劳动阶段：
 
-### 1:05-1:45 劳动阶段
+> This is the labor step. The player has to create resources before trading.
 
-操作：
+NPC 对话：
 
-- `WASD` 移动。
-- 找最近的 fish/farm。
-- `E` 互动，优先 fishing。
+> The player can use natural language, but the backend still validates the
+> actual trade.
 
-说法：
+AI 回合：
 
-> Before trading, I must do labor.
-> Fishing gives immediate resources, while farming is delayed.
-> After labor, the game enters the trade phase.
+> The AI characters act under the same rule system, and the event log makes
+> those actions visible.
 
-补一句工程点：
+Boss / dungeon：
 
-> The UI guides the player, but the backend validates whether the action is legal.
+> The dungeon is a risk-reward route to coins, still tied to trade slots and
+> resources.
 
-### 1:45-3:10 NPC 谈判
+视频结束：
 
-操作：
+> The video shows the full path: survival, negotiation, AI turns, and the dungeon
+> extension.
 
-- 找最近 NPC。
-- `E` 打开对话。
-- 发短消息，不要太长。
+### 5:35-7:00 现场试玩
 
-推荐消息：
-
-```text
-I need wheat to survive tonight. Can you help me? I can offer fish if the deal is fair.
-```
-
-说法：
-
-> This is where the LLM matters. The NPC is not a fixed menu; it can answer with personality.
-> But the LLM does not directly change resources. It proposes dialogue and intent, while the server validates the trade.
-
-LLM 等待时说：
-
-> The thinking state is intentional. LLM calls can be slow, so the UI shows progress instead of looking frozen.
-
-NPC 回复后说：
-
-> The response is generated, but the resource ledger is still deterministic.
-
-### 3:10-3:50 trade slots / merchant
+目标：证明真的能跑，不要重新演完整流程。
 
 操作：
 
-- 能到 merchant 就展示。
-- 到不了就指 trade slot。
+1. 打开游戏。
+2. 点 `NEW GAME`。
+3. `WASD` 走两步。
+4. 靠近一个目标按 `E`。
+5. 如果很顺，再发一句 NPC message。
+6. 模型慢就立刻收住，不要尬等。
 
-说法：
+口播：
 
-> Trade slots are the daily budget. Talking to NPCs, selling to the merchant, and entering the dungeon all compete for this limited resource.
-> That makes conversation part of the economy instead of unlimited chat.
+> I will quickly show the live build as well, just to show that this is runnable
+> and not only a recorded video.
 
-### 3:50-4:40 End Turn / AI 行动
+如果模型慢：
 
-操作：
+> I will not wait for the full response here because the video already showed
+> the complete path. The key point is that this is the same live build.
 
-- 点 `End Turn`。
-- 看 AI 行动和 event log。
+## 必须强调
 
-说法：
+> The model creates social behavior; deterministic backend code owns fairness
+> and validation.
 
-> Now the AI islanders take their turns.
-> They also labor and trade under the same rules.
-> The event log makes AI behavior visible instead of hidden background computation.
+这是最重要的工程点。可以在 PPT architecture、视频 NPC 对话、现场试玩时各提一次。
 
-如果出现 daily event：
+## 不要做
 
-> Daily events add variation, but they are deterministic engine rules, not LLM narration.
+- 不要一直玩到超时。
+- 不要现场等很久的 LLM response。
+- 不要把报告内容逐段念出来。
+- 不要说“PPT 和视频只是备份”，现在它们是主体流程。
+- 不要承诺 exe 包；提交的是 runnable source package。
 
-### 4:40-5:55 Boss Dungeon
-
-操作：
-
-- 能进 dungeon 就进。
-- 展示 20-40 秒，不要执着打完。
-- 提一下键位：`WASD` 移动，`Space` 闪避，`Q` 大招。
-
-说法：
-
-> The dungeon is a risk-reward extension of the economy.
-> It costs one trade slot. Winning gives coins; losing costs resources.
-> The boss scales with the day, so entering early is safer but pays less.
-
-如果音效明显：
-
-> We also added combat sound feedback, so attacks and hits are easier to read live.
-
-### 5:55-6:40 架构收束
-
-操作：
-
-- 保持游戏画面，不切 PPT。
-
-说法：
-
-> The core engineering idea is separation of responsibilities.
-> The frontend renders the island, dialogue UI, 3D preview, combat, and sound.
-> The backend owns state, validation, persistence, and AI calls.
-> The LLM creates social behavior, but deterministic code owns fairness.
-
-### 6:40-7:00 结束
-
-说法：
-
-> Island Escape is a playable AI negotiation game. Players survive through resources, compete through trade, and interact with NPCs that feel more like agents than menus.
-> Thank you.
-
-然后停，等老师问问题。
-
-## 卡住时怎么圆
-
-LLM 慢：
-
-> This is expected because the NPC response comes from an external model. The important part is that the UI shows pending state and the backend keeps the state safe.
-
-找不到 NPC：
-
-> Interaction is spatial by design. The player has to move around the island instead of using a pure menu.
-
-进不了 dungeon：
-
-> Dungeon is only available in the trade phase and costs a trade slot. That restriction makes combat part of the economy.
-
-Boss 打崩：
-
-> Losing is also meaningful because it costs resources. The player has to decide whether the reward is worth the survival risk.
-
-时间只剩 1 分钟：
-
-> Labor creates resources, trade spends limited slots, LLM negotiation creates social behavior, and the backend validates the game rules.
-
-## 队友分工回答
-
-- He Yufeng：主讲、AI 架构、整体设计、验证和集成。
-- Xu Junjie：交互流程、对话 bug、玩家体验细节。
-- Yu Erfei：boss dungeon、按天数变难、音效、玩法 polish。
-- Long Huzhiyuan：3D preview、渲染、左侧面板、视觉 polish。
-
-老师问“谁做了什么”时不要长篇大论，每个人一句话即可。
-
-## 常见问题短答
+## 快速问答
 
 为什么用 LLM？
 
-> Negotiation and personality are exactly where fixed menus feel weak.
+> Because negotiation and personality are where fixed menus feel weakest.
 
 为什么不让 LLM 控制全部？
 
-> Game state must be fair and testable, so the LLM proposes behavior while the engine validates rules.
+> Because game state must be fair and testable. The LLM can propose behavior,
+> but the engine validates the result.
 
-Boss 有什么意义？
+视频展示了现场不一定展示到的什么？
 
-> It gives a faster risk-reward path to coins without replacing the survival-trading loop.
+> The full flow without waiting for model latency: labor, negotiation, AI turns,
+> and dungeon combat.
 
-音效有什么意义？
+主要技术贡献是什么？
 
-> It makes combat feedback easier to understand during live play.
+> Separating generated social behavior from deterministic game-state validation.
 
-Daily events 有什么意义？
+Boss dungeon 的意义是什么？
 
-> They make repeated days less predictable while staying deterministic and testable.
+> It adds a high-energy risk-reward route to coins without replacing the
+> survival trading loop.
 
-如果老师要看 PPT？
+如果现场游戏卡了？
 
-> We prepared it, but the playable build is the main presentation artifact. I can open the PPT if you want a structured summary.
-
-如果老师要问代码包？
-
-> The submitted source package excludes node_modules and generated materials, but includes package files, lockfile, env example, frontend, backend, and shared schemas.
+> The live server is being temperamental, so I will rely on the video for the
+> full path. The submitted source package contains the runnable implementation,
+> and we validated the build and API locally.

@@ -1,127 +1,173 @@
 # Final Presentation Outline
 
-Target length: 7 minutes. Suggested deck length: 8 slides, with the demo video embedded or linked on slide 7.
+Target length: 6-7 minutes.
+
+- PPT: 3-4 minutes.
+- Demo video: about 2 minutes.
+- Live game proof: 1-2 minutes.
+
+The PPT should not try to explain every implementation detail. Its job is to
+frame the design and engineering choices before the video and short live run.
 
 ## Slide 1 - Island Escape
 
-Time: 0:00-0:35
+Time: 0:00-0:25
 
 Main message:
 
-- Island Escape is a survival trading game where LLM-driven NPCs negotiate, compete, and react to scarcity.
-- The player must gather resources, trade intelligently, and reach 100 coins before the island economy eliminates them.
+- Island Escape is a survival trading game with LLM-driven NPC negotiation.
+- The player must survive, trade, and reach 100 coins to escape.
+- The project is a playable game first, not only a chatbot demo.
 
 Visual:
 
 - Title screen screenshot.
 - Subtitle: "Survive, bargain, and escape with AI agents."
 
-## Slide 2 - Core Game Loop
+Speaker note:
 
-Time: 0:35-1:25
+> Our goal was to make conversation affect actual game decisions, not just sit
+> beside the game as decoration.
+
+## Slide 2 - Design Problem And Goal
+
+Time: 0:25-0:55
 
 Main message:
 
-- Every day has a fixed rhythm: labor, trade, AI turns, settlement.
+- Traditional NPC dialogue is often fixed.
+- AI demos can have interesting dialogue but weak game structure.
+- Island Escape combines deterministic survival/trading rules with flexible
+  LLM negotiation.
+
+Visual:
+
+- Two-column contrast: fixed NPC menu vs. AI negotiation inside a rule-based
+  economy.
+
+Speaker note:
+
+> We use AI where it is strong: language, personality, and bargaining style. We
+> keep deterministic code where the game needs fairness.
+
+## Slide 3 - Core Game Loop
+
+Time: 0:55-1:35
+
+Main message:
+
+- Every day has four steps: labor, trade, AI turns, settlement.
 - Fish and wheat keep characters alive; coins are the escape objective.
-- Trade slots make negotiation a limited resource rather than infinite chatting.
+- Trade slots make negotiation a limited resource.
 
 Visual:
 
-- Four-step loop: Labor -> Trade -> AI Turns -> Settlement.
-- Small resource table: fish, wheat, coins, trade slots.
+- Loop diagram: Labor -> Trade -> AI Turns -> Settlement.
+- Small HUD screenshot showing resources, phase, and trade slots.
 
-## Slide 3 - Why LLM Agents Fit This Game
+Speaker note:
 
-Time: 1:25-2:15
+> Talking is not unlimited. It competes with merchant selling and dungeon entry,
+> so dialogue becomes part of the economy.
 
-Main message:
+## Slide 4 - AI Negotiation
 
-- The LLM is used where fixed rules are weakest: dialogue, personality, bargaining style, and intent.
-- The model does not directly change game state.
-- Typed server logic validates all resource transfers and phase transitions.
-
-Visual:
-
-- Two-column diagram:
-  - LLM controls: intention, dialogue, personality.
-  - Game engine controls: resources, phases, trade execution, win/loss.
-
-## Slide 4 - NPC Negotiation Flow
-
-Time: 2:15-3:10
+Time: 1:35-2:15
 
 Main message:
 
-- The player sends natural language plus optional structured proposal.
-- NPC replies with text and may attach an offer/request.
-- Optimistic UI and thinking states keep the flow readable while the model is responding.
+- NPCs respond with personality and bargaining style.
+- The player can use natural language.
+- The model does not directly mutate resources or phase.
 
 Visual:
 
 - Dialogue panel screenshot.
-- Mini sequence: Player message -> NPC thinking -> NPC reply -> accept/counter/reject.
+- Small sequence: player message -> NPC thinking -> NPC reply -> server
+  validation.
+
+Speaker note:
+
+> The model creates social behavior. The backend checks whether the proposed
+> action is legal.
 
 ## Slide 5 - Engineering Architecture
 
-Time: 3:10-4:05
+Time: 2:15-2:55
 
 Main message:
 
-- Vue + PixiJS frontend.
-- Fastify backend as source of truth.
-- Shared Zod schemas connect frontend and backend.
-- SSE streams expose AI progress in real time.
-- SQLite persistence keeps game sessions recoverable.
+- Frontend: Vue, PixiJS, Pinia, 3D preview, dungeon UI, sound.
+- Backend: Fastify state machine, validation, AI calls, SQLite persistence.
+- Shared Zod schemas keep frontend and backend contracts typed.
 
 Visual:
 
-- Architecture diagram:
-  - Browser: Vue UI, PixiJS canvas, Pinia store.
-  - Server: routes, engine, AI runtime, SQLite.
-  - Shared: Zod schemas.
+- Architecture diagram: Browser -> API -> game engine / AI runtime / database.
 
-## Slide 6 - Final Gameplay Extension: Boss Dungeon
+Speaker note:
 
-Time: 4:05-5:00
+> This separation is what makes the project robust: LLM output can vary, but the
+> game state remains deterministic and testable.
+
+## Slide 6 - Final Polish And Extensions
+
+Time: 2:55-3:35
 
 Main message:
 
-- The dungeon is a risk/reward action during the trade phase.
-- It costs a trade slot and is limited to once per day.
-- Winning grants coins; losing costs resources.
-- It adds a high-energy moment to the demo while still feeding the economy.
+- 3D preview and UI polish make interaction easier to read.
+- Boss dungeon adds a high-energy risk-reward path.
+- Sound effects improve live readability.
+- Validation was kept in the loop: lint, typecheck, tests, build.
 
 Visual:
 
-- Boss arena screenshot or short GIF frame.
-- Outcome table: enter cost, win reward, loss penalty.
+- Boss arena screenshot or video still.
+- Small checklist: lint, typecheck, tests, build.
+
+Speaker note:
+
+> The dungeon is not separate from the economy. It costs a trade slot and can
+> reward coins or punish the player with resource loss.
 
 ## Slide 7 - Demo Video
 
-Time: 5:00-6:20
+Time: 3:35-5:35
 
 Main message:
 
-- Show: new game, movement, labor, NPC trade, AI turn, dungeon.
-- Speed up slow waits; keep one negotiation moment at normal speed.
+- The video shows the complete intended flow without waiting on every model
+  call live.
+- Show: new game, movement, labor, NPC negotiation, AI turns, dungeon.
 
 Visual:
 
-- Embedded 90-120 second edited video.
+- Embedded or linked 90-120 second edited video.
 
-## Slide 8 - Validation, Contributions, and Next Steps
+Speaker note:
 
-Time: 6:20-7:00
+> The video is the proof of the full loop. I will only comment on the key
+> moments instead of narrating every frame.
+
+## Slide 8 - Live Build And Q&A
+
+Time: 5:35-7:00
 
 Main message:
 
-- Validation: lint, typecheck, tests, build.
-- Contributions: coordination/AI architecture/final integration/report; dialogue fixes; boss work; rendering/visual section.
-- Limitations: LLM latency, balance tuning, richer memory.
-- Future work: deeper agent memory, better evaluation, stronger economy-dungeon coupling.
+- The final 1-2 minutes are a short live proof that the submitted build runs.
+- Do not replay the whole video live.
+- Use live play to show `NEW GAME`, movement, and one interaction.
 
 Visual:
 
-- Validation checklist with pass marks.
-- One small future-work list.
+- Keep this slide minimal: "Live build + questions".
+- Optional backup command list:
+  - `pnpm dev`
+  - `http://localhost:5173`
+
+Speaker note:
+
+> I will briefly open the live build now. If model latency is slow, I will not
+> wait for the full response because the video already showed the complete path.
