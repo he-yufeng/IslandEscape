@@ -177,6 +177,7 @@ export const DailyEventSchema = z.enum([
   'storm',         // fishing yields only 2 fish today (halved)
   'festival',      // friendship gains doubled on peer trades
   'lucky_catch',   // every alive character gains +2 fish at dawn
+  'bumper_crop',   // every alive character gains +2 wheat at dawn
   'drought',       // night upkeep costs 2 wheat instead of 1
 ])
 export type DailyEvent = z.infer<typeof DailyEventSchema>
@@ -201,6 +202,11 @@ export const DAILY_EVENT_INFO: Record<DailyEvent, { label: string; icon: string;
     label: 'Lucky Catch',
     icon: '🎣',
     desc: 'A school of fish washes ashore — every alive character gained +2 fish at dawn.',
+  },
+  bumper_crop: {
+    label: 'Bumper Crop',
+    icon: '🌾',
+    desc: 'The fields overflow — every alive character gained +2 wheat at dawn.',
   },
   drought: {
     label: 'Drought',

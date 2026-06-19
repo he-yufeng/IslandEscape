@@ -70,12 +70,13 @@ function rollDailyEvent(day: number): DailyEvent {
   if (day <= 2) return 'none'
   const r = Math.random()
   if (r < 0.65) return 'none'
-  if (r < 0.74) return 'storm'
-  if (r < 0.84) return 'festival'
-  if (r < 0.94) return 'lucky_catch'
+  if (r < 0.73) return 'storm'
+  if (r < 0.81) return 'festival'
+  if (r < 0.88) return 'lucky_catch'
+  if (r < 0.95) return 'bumper_crop'
   // Drought is the deadliest event — only allow it once players have a couple
   // of harvest cycles under their belt (Day 4+).
-  if (day < 4) return 'lucky_catch'
+  if (day < 4) return 'bumper_crop'
   return 'drought'
 }
 
@@ -155,6 +156,18 @@ export function startDay(state: GameState): GameState {
     }
   }
 
+  // Bumper Crop event — the farming counterpart of Lucky Catch: every alive
+  // character receives +2 wheat at dawn.
+  if (dailyEvent === 'bumper_crop') {
+    for (const id of ALL_CHARACTERS) {
+      const c = characters[id]
+      if (c && c.alive && !c.escaped) {
+        const res = safeResources(c.resources)
+        characters[id] = { ...c, resources: { ...res, wheat: res.wheat + 2 } }
+      }
+    }
+  }
+
   // Deliver pending harvests
   const remainingHarvests = []
   const harvestLog: string[] = []
@@ -183,6 +196,7 @@ export function startDay(state: GameState): GameState {
   if (dailyEvent === 'storm') eventLogLines.push('⛈️ Storm — fishing yields only 1 fish today.')
   else if (dailyEvent === 'festival') eventLogLines.push('🎉 Festival — friendship gains doubled today.')
   else if (dailyEvent === 'lucky_catch') eventLogLines.push('🎣 Lucky Catch — everyone alive received +2 fish at dawn.')
+  else if (dailyEvent === 'bumper_crop') eventLogLines.push('🌾 Bumper Crop — everyone alive received +2 wheat at dawn.')
   else if (dailyEvent === 'drought') eventLogLines.push('🏜️ Drought — tonight\'s upkeep costs 2 wheat.')
 
   return {
