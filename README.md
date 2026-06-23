@@ -192,6 +192,15 @@ pnpm build
 | POST | `/api/games/:id/action` | Submit player action |
 | GET | `/api/games/:id/stream` | SSE stream for real-time AI turn updates |
 
+## Roadmap
+
+The core loop — daily turns, trading, and LLM-driven NPCs — plays end to end. The next steps are about depth and reach:
+
+- **Save and resume** — persist a run so a player can leave and come back, instead of starting fresh each session.
+- **More NPC archetypes** — additional AI personalities with distinct trading behavior, so the island feels less repeatable across playthroughs.
+- **A difficulty curve** — tune prices, events, and the escape goal across early and late game, so a run has more shape than a flat grind.
+- **Local-model mode** — let NPC dialogue run against a local model (Ollama), so the game is playable without a hosted API key.
+
 ## References
 
 - [Generative Agents (Park et al., 2023)](https://arxiv.org/abs/2304.03442) — foundational LLM agent architecture
