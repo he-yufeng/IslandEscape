@@ -1,4 +1,15 @@
-# Island Escape
+<div align="center">
+
+<img src="docs/banner.png" alt="IslandEscape — 2D pixel-art survival game with LLM-powered AI agents" width="100%">
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org)
+
+[**Quick Start**](#setup) · [**How to Play**](#how-to-play) · [**AI Agents**](#ai-personalities) · [中文](README_CN.md)
+
+</div>
+
+<p align="center"><img src="docs/architecture.png" alt="IslandEscape architecture" width="720"></p>
 
 A 2D pixel-art survival trading game powered by LLM-based AI agents.
 
