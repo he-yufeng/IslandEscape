@@ -213,10 +213,6 @@ pnpm dev
 - [Project Sid (2024)](https://arxiv.org/abs/2411.00114) —— 多 Agent 模拟中的涌现经济
 - [AI Town (a16z)](https://github.com/a16z-infra/ai-town) —— 开源 LLM Agent 模拟
 
-## 团队
-
-HKU COMP7604 游戏设计课程项目。分工：**何宇峰**（AI 智能体、统筹、整合）、**徐俊杰**（对话、服务端、调 bug）、**余尔斐**（Boss 副本、战斗）、**龙虎之远**（3D 预览、美术）。
-
 ## License
 
 MIT
