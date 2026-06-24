@@ -418,7 +418,7 @@ export function resolveDungeon(state: GameState, result: DungeonResult): GameSta
 
   if (result.win) {
     // Scale coin reward by day so later, harder runs feel worth it.
-    // Day 1 → 20 / Day 5 → 36 / Day 10 → 56 / capped at 80.
+    // Day 1 → 15 / Day 5 → 31 / Day 10 → 51 / capped at 80.
     const coinReward = Math.min(80, GAME_CONFIG.DUNGEON_COIN_REWARD + Math.max(0, state.day - 1) * 4)
     const updatedPlayer = {
       ...player,
