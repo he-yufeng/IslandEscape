@@ -217,6 +217,15 @@ What plays end-to-end today is the full loop: daily phases, the merchant economy
 
 Built as a COMP7604 game-design project at HKU. Team and roles: **He Yufeng** (AI agents, coordination, integration), **Xu Junjie** (dialogue, server, bug-fixing), **Yu Erfei** (boss dungeon, combat), **Long Huzhiyuan** (3D preview, visuals).
 
+## Related Projects
+
+IslandEscape started as an experiment in keeping an LLM honest. A few other things I've built:
+
+- **[CoreCoder](https://github.com/he-yufeng/CoreCoder)** — want to understand how a coding agent really works? Read the whole ~1k-line engine end to end, not a black box.
+- **[RepoWiki](https://github.com/he-yufeng/RepoWiki)** — dropped into an unfamiliar codebase? It gives you a guided wiki and a where-to-start reading path, a self-hostable DeepWiki alternative.
+- **[FindJobs-Agent](https://github.com/he-yufeng/FindJobs-Agent)** — stop sifting job boards by hand: it ranks postings against your resume and runs mock interviews.
+- **[agentcikit](https://github.com/he-yufeng/agentcikit)** — the CI safety layer for LLM agents: replay runs, fence tool calls, and triage failures before they ship.
+
 ## License
 
 MIT

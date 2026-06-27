@@ -213,6 +213,15 @@ pnpm dev
 - [Project Sid (2024)](https://arxiv.org/abs/2411.00114) —— 多 Agent 模拟中的涌现经济
 - [AI Town (a16z)](https://github.com/a16z-infra/ai-town) —— 开源 LLM Agent 模拟
 
+## 相关项目
+
+IslandEscape 最初是个「怎么让 LLM 不作弊」的实验，下面几个也是我做的：
+
+- **[CoreCoder](https://github.com/he-yufeng/CoreCoder)** — 想搞懂一个 coding agent 到底怎么运作？把整套约 1000 行引擎从头读到尾，而不是当黑箱。
+- **[RepoWiki](https://github.com/he-yufeng/RepoWiki)** — 被丢进一个陌生代码库？它给你一份带「从哪读起」路径的 wiki，一个可自托管的 DeepWiki 替代。
+- **[FindJobs-Agent](https://github.com/he-yufeng/FindJobs-Agent)** — 别再手动刷招聘网站：它按你的简历给岗位排序，还能跑模拟面试。
+- **[agentcikit](https://github.com/he-yufeng/agentcikit)** — LLM agent 的 CI 安全层：回放运行、给工具调用上围栏、上线前分诊失败。
+
 ## License
 
 MIT
