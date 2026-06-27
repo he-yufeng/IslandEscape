@@ -213,10 +213,6 @@ What plays end-to-end today is the full loop: daily phases, the merchant economy
 - [Project Sid (2024)](https://arxiv.org/abs/2411.00114) — emergent economies in multi-agent simulations
 - [AI Town (a16z)](https://github.com/a16z-infra/ai-town) — open-source LLM agent simulation
 
-## Credits
-
-Built as a COMP7604 game-design project at HKU. Team and roles: **He Yufeng** (AI agents, coordination, integration), **Xu Junjie** (dialogue, server, bug-fixing), **Yu Erfei** (boss dungeon, combat), **Long Huzhiyuan** (3D preview, visuals).
-
 ## Related Projects
 
 IslandEscape started as an experiment in keeping an LLM honest. A few other things I've built:
